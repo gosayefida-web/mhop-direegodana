@@ -389,7 +389,10 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; }
 <div class="hero reviewable" onclick="quickComment('Hero / title')">
   <div class="hero-eyebrow" id="h-eyebrow">Diree Godana Hospital · Department of Preventive Medicine</div>
   <h1 id="h-title">Metabolic Health Optimisation Project</h1>
-  <p class="hero-sub" id="h-sub">A structured clinical programme for the prevention, management and reversal of Type 2 Diabetes and prediabetes at Diree Godana Teaching Hospital — serving patients across the glycaemic continuum from early risk to advanced disease.</p>
+  <p class="hero-sub" id="h-sub-intro">At Diree Godana Teaching Hospital, we believe that metabolic health is not a clinical problem to be managed — it is a human story to be understood.</p>
+  <p class="hero-sub" id="h-sub" style="margin-top:14px">Metabolic Health Optimisation goes beyond managing blood sugar or controlling weight. It is about restoring your body's natural ability to produce, use, and regulate energy — efficiently, reliably, and sustainably. It is not about restriction or endless monitoring. It is about understanding how your body works and giving it exactly what it needs to work better — through the right nutrition, the right movement, the right behaviour, and the right clinical support at the right time.</p>
+  <p class="hero-sub" id="h-sub2" style="margin-top:14px">Our approach is rooted in science but applied with care for the whole person — your life, your culture, your circumstances, and your goals. Because metabolic health does not exist only in a clinic. It exists in every meal, every step, every night of sleep, and every choice made across a lifetime.</p>
+  <p class="hero-sub" id="h-sub3" style="margin-top:14px;font-style:italic;color:#1D4E89;font-weight:600">The Metabolic Health Optimisation Project at Diree Godana is built on one conviction: that every patient deserves not just to live longer — but to live stronger.</p>
   <div class="hero-actions">
     <button class="btn-p" id="h-btn1">Visit our Health Hub</button>
     <button class="btn-s" id="h-btn2">Learn about the programme</button>
@@ -743,7 +746,10 @@ const T = {
   en: {
     'h-eyebrow':'Diree Godana Hospital · Department of Preventive Medicine',
     'h-title':'Metabolic Health Optimisation Project',
-    'h-sub':'A structured clinical programme for the prevention, management and reversal of Type 2 Diabetes and prediabetes at Diree Godana Teaching Hospital.',
+    'h-sub-intro':'At Diree Godana Teaching Hospital, we believe that metabolic health is not a clinical problem to be managed — it is a human story to be understood.',
+    'h-sub':'Metabolic Health Optimisation goes beyond managing blood sugar or controlling weight. It is about restoring your body\'s natural ability to produce, use, and regulate energy — efficiently, reliably, and sustainably. It is not about restriction or endless monitoring. It is about understanding how your body works and giving it exactly what it needs to work better — through the right nutrition, the right movement, the right behaviour, and the right clinical support at the right time.',
+    'h-sub2':'Our approach is rooted in science but applied with care for the whole person — your life, your culture, your circumstances, and your goals. Because metabolic health does not exist only in a clinic. It exists in every meal, every step, every night of sleep, and every choice made across a lifetime.',
+    'h-sub3':'The Metabolic Health Optimisation Project at Diree Godana is built on one conviction: that every patient deserves not just to live longer — but to live stronger.',
     'h-btn1':'Visit our Health Hub','h-btn2':'Learn about the programme',
     'ht1':'Prediabetes · T2DM · β-cell failure',
     'ht2':'Dietician · Diabetes nurse · Physical activity · Behavioural therapy',
@@ -799,7 +805,10 @@ const T = {
   or: {
     'h-eyebrow':'Hospitaala Diree Godana · Waajjira Fayyaa Ittisuu',
     'h-title':'Pirojektii Fooyyessuu Fayyaa Metabolizimii',
-    'h-sub':'Sagantaa kilinikaa caaseffame kan dhibee sukkaaraa akaakuu 2ffaa fi dura-dhibee sukkaaraa ittisuu, to\'achuu fi deebisuu — Hospitaala Barsiisaa Diree Godana.',
+    'h-sub-intro':'Hospitaala Barsiisaa Diree Godanaatti, fayyaa metabolizimii rakkoo kilinikaa qofa osoo hin taane — seenaa namaa ta\'uutti amanna.',
+    'h-sub':'Fooyyessuu Fayyaa Metabolizimii sukkaaraa dhiigaa too\'achuu ykn ulfaatina hir\'isuu caalaa. Dandeettii uumamaa qaamaa kan humna oomishuu, fayyadamuu fi to\'achuuf — salphatti, amanamummaaan fi itti fufiinsaan — deebisuu irratti xiyyeeffata. Dhiphina ykn hordoffii hin dhumne miti. Qaamni kee akkamitti akka hojjetu hubachuufi fi kan inni caalaatti hojjetuuf waan barbaachisu kennuufi — nyaata sirrii, sochii sirrii, amala sirrii fi deeggarsa kilinikaa sirrii yeroo sirrii.',
+    'h-sub2':'Karaan keenya saayinsii irratti hundaa\'e garuu nama guutuuf qofa — jireenya kee, aadaa kee, haala kee, fi galmoota keetif — of qusannaadhaan hojjeta. Fayyaan metabolizimii kilinika keessatti qofa hin jiru. Nyaata hunda, tarkaanfii hunda, rafuu hunda fi filannoo hunda jireenya keessatti jira.',
+    'h-sub3':'Pirojektiin Fooyyessuu Fayyaa Metabolizimii Diree Godanaa amantaa tokkorratti ijaarame: dhukkubsataan hundi yeroo dheeraa jiraachuu qofa osoo hin taane — cimina qabaatee jiraachuu qaba.',
     'h-btn1':'Buufata Fayyaa Daawwadhu','h-btn2':'Sagantaa baradhu',
     'ht1':'Dura-dhibee · T2DM · β-cell',
     'ht2':'Ogessa nyaataa · Narsii · Sochii qaamaa · Therapii amala',
@@ -854,7 +863,10 @@ const T = {
   am: {
     'h-eyebrow':'ድሬ ጎዳና ሆስፒታል · የበሽታ መከላከያ ሕክምና ዲፓርትመንት',
     'h-title':'የሜታቦሊክ ጤና ማሻሻያ ፕሮጀክት',
-    'h-sub':'ለዓይነት 2 የስኳር በሽታ እና ቅድመ-ስኳር ምክንያት፣ አስተዳደር እና ማስቆም የተደራጀ ክሊኒካዊ ፕሮግራም — በድሬ ጎዳና ማስተምሪያ ሆስፒታል።',
+    'h-sub-intro':'በድሬ ጎዳና ማስተምሪያ ሆስፒታል፣ የሜታቦሊክ ጤና የሚተዳደር ክሊኒካዊ ችግር ብቻ አይደለም — የሚረዳ የሰው ልጅ ታሪክ ነው ብለን እናምናለን።',
+    'h-sub':'የሜታቦሊክ ጤና ማሻሻያ የደም ስኳር ከመቆጣጠር ወይም ክብደት ከመቀነስ በላይ ነው። ሰውነትዎ ኃይልን ለማምረት፣ ለመጠቀም እና ለመቆጣጠር ያለውን ተፈጥሯዊ ችሎታ — በቀላሉ፣ በአስተማማኝነት እና ዘላቂ በሆነ መልኩ — ወደ ነበረበት ለመመለስ ነው። ገደብ ወይም ማለቂያ የሌለው ክትትል አይደለም። ሰውነትዎ እንዴት እንደሚሰራ መረዳት እና በትክክለኛ ምግብ፣ በትክክለኛ እንቅስቃሴ፣ በትክክለኛ ባህሪ እና በትክክለኛ ጊዜ በትክክለኛ ክሊኒካዊ ድጋፍ የሚፈልገውን መስጠት ነው።',
+    'h-sub2':'አካሄዳችን በሳይንስ ላይ የተመሰረተ ነው ነገር ግን ለሙሉ ሰው — ለእርስዎ ሕይወት፣ ለእርስዎ ባህል፣ ለእርስዎ ሁኔታ እና ለእርስዎ ግቦች — በጥንቃቄ ተፈጻሚ ይሆናል። የሜታቦሊክ ጤና በክሊኒክ ብቻ የለም። በእያንዳንዱ ምግብ፣ በእያንዳንዱ እርምጃ፣ በእያንዳንዱ ሌሊት እንቅልፍ እና በህይወት ውስጥ በሚደረግ እያንዳንዱ ምርጫ ውስጥ ይኖራል።',
+    'h-sub3':'በድሬ ጎዳና የሜታቦሊክ ጤና ማሻሻያ ፕሮጀክት በአንድ እምነት ላይ ተመስርቷል፡ እያንዳንዱ ሕሙም ረዘም ያለ ጊዜ ለመኖር ብቻ ሳይሆን — ጠንካራ ሆኖ ለመኖር ይገባዋል።',
     'h-btn1':'የጤና ሐብ ይጎብኙ','h-btn2':'ፕሮግራሙን ይወቁ',
     'ht1':'ቅድመ-ስኳር · T2DM · β-ሴል',
     'ht2':'ዳዬቲሺያን · ነርስ · አካላዊ እንቅስቃሴ · የባህሪ ህክምና',
@@ -917,7 +929,7 @@ function setLang(lang, btn) {
     const el = document.getElementById(id);
     if(el) el.textContent = t[id];
   });
-  ['h-title','h-sub','s-about-h2','s-about-p1','s-about-p2',
+  ['h-title','h-sub-intro','h-sub','h-sub2','h-sub3','s-about-h2','s-about-p1','s-about-p2',
    's-stages-h2','s-stages-p','sc-a-h','sc-a-p','sc-b-h','sc-b-p','sc-c-h','sc-c-p',
    's-hub-h2','hub-intro-p','tc1-h','tc1-r','tc1-p','tc2-h','tc2-r','tc2-p',
    'tc3-h','tc3-r','tc3-p','tc4-h','tc4-r','tc4-p','hub-note',
