@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MHOP Clinical Dashboard — Diree Godana Hospital</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font-size: 13px; }
+
+/* ── AUTH ── */
+.auth-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; background:#1D4E89; }
+.auth-card { background:#fff; border-radius:12px; padding:40px; width:380px; }
+.auth-logo { text-align:center; margin-bottom:20px; }
+.auth-logo h1 { font-size:20px; font-weight:700; color:#1D4E89; }
+.auth-logo p { font-size:11px; color:#888; margin-top:4px; }
+.auth-badge { background:#FEF3C7; border:1px solid #f5c842; border-radius:6px; padding:8px 12px; font-size:11px; color:#7A5C00; margin-bottom:16px; text-align:center; }
+.fld { margin-bottom:12px; }
+.fld label { font-size:11px; font-weight:700; color:#666; text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:4px; }
+.fld input, .fld select, .fld textarea { width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; font-family:Arial; background:#fff; color:#1a1a18; }
+.fld input:focus, .fld select:focus { outline:none; border-color:#1D4E89; }
+.auth-btn { width:100%; padding:10px; background:#1D4E89; color:#fff; border:none; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer; font-family:Arial; }
+.auth-error { background:#FCECEA; border:1px solid #f09595; border-radius:6px; padding:8px 12px; font-size:12px; color:#A32D2D; margin-top:10px; display:none; }
+
+/* ── APP SHELL ── */
+.app { display:none; height:100vh; flex-direction:column; }
+.topbar { background:#1D4E89; color:#fff; padding:0 20px; height:48px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.topbar-left { font-size:14px; font-weight:700; display:flex; align-items:center; gap:10px; }
+.top-badge { background:rgba(255,255,255,.2); font-size:10px; padding:2px 8px; border-radius:10px; }
+.topbar-right { display:flex; align-items:center; gap:10px; font-size:11px; }
+.signout-btn { background:rgba(255,255,255,.15); border:none; color:#fff; padding:4px 10px; border-radius:6px; font-size:11px; cursor:pointer; font-family:Arial; }
+.body { display:flex; flex:1; overflow:hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar { width:220px; background:#fff; border-right:1px solid #e8e8e8; display:flex; flex-direction:column; overflow-y:auto; flex-shrink:0; }
+.sb-section { padding:12px; border-bottom:1px solid #f0f0f0; }
+.sb-section h3 { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#aaa; margin-bottom:8px; }
+.nav-btn { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px; cursor:pointer; font-size:12px; color:#444; margin-bottom:2px; border:none; background:none; width:100%; text-align:left; font-family:Arial; }
+.nav-btn:hover { background:#f0f4ff; color:#1D4E89; }
+.nav-btn.active { background:#E6F1FB; color:#1D4E89; font-weight:700; }
+.reg-btn { margin:10px; padding:8px; background:#1D4E89; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; font-family:Arial; width:calc(100% - 20px); }
+
+/* Patient list in sidebar */
+.pt-search { width:calc(100% - 16px); margin:8px; padding:6px 8px; border:1px solid #ddd; border-radius:6px; font-size:12px; font-family:Arial; }
+.pt-item { padding:8px 12px; cursor:pointer; border-bottom:1px solid #f5f5f0; }
+.pt-item:hover { background:#f0f4ff; }
+.pt-item.active { background:#E6F1FB; }
+.pt-id { font-family:monospace; font-weight:700; font-size:12px; color:#1D4E89; }
+.pt-meta { font-size:11px; color:#888; margin-top:2px; }
+.stage-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
+.dot-a { background:#1D9E75; }
+.dot-b { background:#1D4E89; }
+.dot-c { background:#C0392B; }
+
+/* ── MAIN ── */
+.main { flex:1; overflow-y:auto; background:#f0f2f5; }
+.page { display:none; padding:20px; }
+.page.active { display:block; }
+
+/* ── PATIENT HEADER ── */
+.pt-header { background:#fff; border:1px solid #e8e8e8; border-radius:10px; padding:16px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+.pt-header-left { display:flex; align-items:center; gap:16px; }
+.pt-avatar { width:48px; height:48px; border-radius:50%; background:#E6F1FB; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; color:#1D4E89; }
+.pt-name { font-size:18px; font-weight:700; color:#1D4E89; }
+.pt-sub { font-size:12px; color:#888; margin-top:3px; }
+.stage-badge { font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; }
+.badge-a { background:#E8F5EE; color:#085041; }
+.badge-b { background:#E6F1FB; color:#1D4E89; }
+.badge-c { background:#FCECEA; color:#A32D2D; }
+
+/* ── KPI CARDS ── */
+.kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+.kpi { background:#fff; border:1px solid #e8e8e8; border-radius:8px; padding:14px; }
+.kpi-val { font-size:24px; font-weight:700; color:#1D4E89; }
+.kpi-lbl { font-size:11px; color:#888; margin-top:2px; }
+.kpi-sub { font-size:11px; margin-top:4px; }
+.ok { color:#085041; } .warn { color:#B45309; } .bad { color:#A32D2D; }
+
+/* ── TABS ── */
+.tabs { display:flex; gap:2px; margin-bottom:16px; border-bottom:1px solid #e8e8e8; }
+.tab { padding:8px 16px; border:none; background:none; font-size:12px; color:#666; cursor:pointer; border-bottom:2px solid transparent; font-family:Arial; }
+.tab:hover { color:#1D4E89; }
+.tab.active { color:#1D4E89; font-weight:700; border-bottom-color:#1D4E89; }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* ── CARDS ── */
+.card { background:#fff; border:1px solid #e8e8e8; border-radius:10px; padding:16px; margin-bottom:14px; }
+.card-title { font-size:13px; font-weight:700; color:#1a1a18; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+
+/* ── METRIC ROW ── */
+.metric-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid #f5f5f0; font-size:12px; }
+.metric-row:last-child { border-bottom:none; }
+.metric-label { color:#666; }
+.metric-val { font-weight:700; }
+.metric-target { font-size:10px; color:#aaa; margin-left:6px; }
+
+/* ── CHART ── */
+.chart-wrap { position:relative; height:200px; }
+
+/* ── TABLE ── */
+.data-table { width:100%; border-collapse:collapse; font-size:12px; }
+.data-table th { background:#1D4E89; color:#fff; padding:8px 10px; text-align:left; font-size:11px; font-weight:700; }
+.data-table td { padding:8px 10px; border-bottom:1px solid #f0f0f0; }
+.data-table tr:hover td { background:#f0f4ff; }
+.data-table tr:nth-child(even) td { background:#fafafa; }
+
+/* ── FORM GRID ── */
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.form-grid.full { grid-template-columns:1fr; }
+.submit-btn { padding:9px 22px; background:#1D4E89; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; font-family:Arial; margin-top:8px; }
+.save-ok { background:#E8F5EE; border:1px solid #9FE1CB; border-radius:6px; padding:8px 12px; font-size:12px; color:#085041; margin-top:8px; display:none; }
+
+/* ── ALERTS ── */
+.alert { border-radius:6px; padding:9px 12px; font-size:12px; margin-bottom:12px; }
+.alert-info { background:#E6F1FB; color:#1D4E89; border:1px solid #B5D4F4; }
+.alert-warn { background:#FEF3C7; color:#7A5C00; border:1px solid #FAC775; }
+.alert-success { background:#E8F5EE; color:#085041; border:1px solid #9FE1CB; }
+
+/* ── REGISTER SUCCESS ── */
+.reg-success { display:none; background:#E8F5EE; border:1px solid #9FE1CB; border-radius:8px; padding:20px; margin-top:16px; }
+.mhop-id-big { font-size:32px; font-weight:700; color:#1D4E89; font-family:monospace; background:#fff; border:2px solid #1D4E89; border-radius:8px; padding:12px 20px; display:inline-block; margin:10px 0; letter-spacing:3px; }
+
+/* ── CGM GAUGE ── */
+.cgm-bar { height:24px; border-radius:6px; overflow:hidden; display:flex; margin:8px 0; }
+.cgm-tbr { background:#3B8BD4; }
+.cgm-tir { background:#1D9E75; }
+.cgm-tar1 { background:#EF9F27; }
+.cgm-tar2 { background:#E24B4A; }
+.cgm-label { font-size:10px; color:#888; display:flex; justify-content:space-between; margin-bottom:4px; }
+
+/* ── HOME OVERVIEW ── */
+.overview-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+.ov-card { background:#fff; border:1px solid #e8e8e8; border-radius:8px; padding:14px; text-align:center; }
+.ov-val { font-size:28px; font-weight:700; }
+.ov-lbl { font-size:11px; color:#888; margin-top:3px; }
+
+.empty { color:#888; font-size:12px; padding:16px 0; text-align:center; }
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <h1>MHOP Clinical Dashboard</h1>
+      <p>Diree Godana Teaching Hospital · Department of Preventive Medicine</p>
+    </div>
+    <div class="auth-badge">🔒 Authorised DGH staff only</div>
+    <div class="fld"><label>Email</label><input type="email" id="login-email" placeholder="your@email.com"></div>
+    <div class="fld"><label>Password</label><input type="password" id="login-pw" placeholder="Password"></div>
+    <button class="auth-btn" onclick="signIn()">Sign in</button>
+    <div class="auth-error" id="auth-err"></div>
+    <p style="font-size:11px;color:#aaa;text-align:center;margin-top:14px">Contact the Programme Lead to have your account created.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      MHOP Clinical Dashboard
+      <span class="top-badge">Diree Godana Teaching Hospital</span>
+    </div>
+    <div class="topbar-right">
+      <span id="top-user"></span>
+      <span id="top-role" style="color:rgba(255,255,255,.7)"></span>
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <button class="reg-btn" onclick="showPage('register')">+ Register new patient</button>
+      <div class="sb-section">
+        <h3>Navigation</h3>
+        <button class="nav-btn active" id="nb-home" onclick="showPage('home')">📊 Programme overview</button>
+        <button class="nav-btn" id="nb-entry" onclick="showPage('entry')">📝 Data entry</button>
+        <button class="nav-btn" id="nb-register" onclick="showPage('register')">➕ Register patient</button>
+        <button class="nav-btn" id="nb-audit" onclick="showPage('audit')">🔍 Audit log</button>
+        <button class="nav-btn" id="nb-protocol" onclick="showPage('protocol')">📋 Protocol reference</button>
+      </div>
+      <div class="sb-section">
+        <h3>Patients</h3>
+        <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
+          <button onclick="filterPts('all')" style="font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid #ddd;background:#fff;cursor:pointer">All</button>
+          <button onclick="filterPts('A')" style="font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid #1D9E75;background:#E8F5EE;color:#085041;cursor:pointer">A</button>
+          <button onclick="filterPts('B')" style="font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid #1D4E89;background:#E6F1FB;color:#1D4E89;cursor:pointer">B</button>
+          <button onclick="filterPts('C')" style="font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid #C0392B;background:#FCECEA;color:#A32D2D;cursor:pointer">C</button>
+        </div>
+        <input class="pt-search" type="text" placeholder="Search MHOP ID..." id="pt-search" oninput="renderPtList()">
+        <div id="pt-list"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+
+      <!-- HOME -->
+      <div class="page active" id="page-home">
+        <div style="font-size:18px;font-weight:700;color:#1D4E89;margin-bottom:4px">Programme overview</div>
+        <div style="font-size:12px;color:#888;margin-bottom:16px">Diree Godana Teaching Hospital · MHOP · Real-time</div>
+        <div class="overview-grid">
+          <div class="ov-card"><div class="ov-val" id="ov-total" style="color:#1D4E89">—</div><div class="ov-lbl">Total enrolled</div></div>
+          <div class="ov-card"><div class="ov-val" id="ov-a" style="color:#085041">—</div><div class="ov-lbl">Stage A — Prediabetes</div></div>
+          <div class="ov-card"><div class="ov-val" id="ov-b" style="color:#1D4E89">—</div><div class="ov-lbl">Stage B — T2DM</div></div>
+        </div>
+        <div class="overview-grid">
+          <div class="ov-card"><div class="ov-val" id="ov-c" style="color:#A32D2D">—</div><div class="ov-lbl">Stage C — Advanced</div></div>
+          <div class="ov-card"><div class="ov-val" id="ov-entries" style="color:#1D4E89">—</div><div class="ov-lbl">Total data entries</div></div>
+          <div class="ov-card"><div class="ov-val" id="ov-today" style="color:#085041">—</div><div class="ov-lbl">Entries today</div></div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">📋 Recent registrations</div>
+            <div id="recent-reg"><div class="empty">Loading...</div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">📝 Recent data entries</div>
+            <div id="recent-entries"><div class="empty">Loading...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PATIENT RECORD -->
+      <div class="page" id="page-patient">
+        <div class="pt-header" id="pt-header">
+          <div class="pt-header-left">
+            <div class="pt-avatar" id="pt-avatar">—</div>
+            <div>
+              <div class="pt-name" id="pt-name">—</div>
+              <div class="pt-sub" id="pt-sub">—</div>
+            </div>
+            <span class="stage-badge" id="pt-stage-badge">—</span>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:#888" id="pt-enrolled">—</div>
+            <button class="submit-btn" style="margin-top:6px;font-size:11px;padding:5px 12px" onclick="showPage('entry')">+ Enter data</button>
+          </div>
+        </div>
+
+        <!-- KPI ROW -->
+        <div class="kpi-grid" id="kpi-row">
+          <div class="kpi"><div class="kpi-val" id="kpi-hba1c">—</div><div class="kpi-lbl">HbA1c (mmol/mol)</div><div class="kpi-sub" id="kpi-hba1c-s"></div></div>
+          <div class="kpi"><div class="kpi-val" id="kpi-tir">—</div><div class="kpi-lbl">TIR %</div><div class="kpi-sub" id="kpi-tir-s"></div></div>
+          <div class="kpi"><div class="kpi-val" id="kpi-bmi">—</div><div class="kpi-lbl">BMI (kg/m²)</div><div class="kpi-sub" id="kpi-bmi-s"></div></div>
+          <div class="kpi"><div class="kpi-val" id="kpi-steps">—</div><div class="kpi-lbl">Steps/day</div><div class="kpi-sub" id="kpi-steps-s"></div></div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" onclick="showTab('overview')">Overview</button>
+          <button class="tab" onclick="showTab('glycaemic')">Glycaemic</button>
+          <button class="tab" onclick="showTab('body')">Body composition</button>
+          <button class="tab" onclick="showTab('clinical')">Clinical markers</button>
+          <button class="tab" onclick="showTab('lifestyle')">Lifestyle</button>
+          <button class="tab" onclick="showTab('dietary')">Dietary</button>
+          <button class="tab" onclick="showTab('behavioural')">Behavioural</button>
+        </div>
+
+        <!-- OVERVIEW TAB -->
+        <div class="tab-panel active" id="tp-overview">
+          <div class="two-col">
+            <div class="card">
+              <div class="card-title">📈 CGM summary</div>
+              <div id="cgm-bar-wrap">
+                <div class="cgm-label"><span>TBR</span><span>TIR</span><span>TAR</span></div>
+                <div class="cgm-bar" id="cgm-bar"></div>
+              </div>
+              <div id="cgm-metrics"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">⚖️ Body composition</div>
+              <div id="body-overview"></div>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-title">❤️ Clinical markers</div>
+              <div id="clinical-overview"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">🏃 Lifestyle</div>
+              <div id="lifestyle-overview"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GLYCAEMIC TAB -->
+        <div class="tab-panel" id="tp-glycaemic">
+          <div class="card">
+            <div class="card-title">📈 HbA1c trend</div>
+            <div class="chart-wrap"><canvas id="hba1c-chart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">CGM history</div>
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>HbA1c</th><th>TIR%</th><th>TAR%</th><th>TBR%</th><th>MAGE</th><th>CV%</th></tr></thead>
+              <tbody id="glycaemic-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- BODY TAB -->
+        <div class="tab-panel" id="tp-body">
+          <div class="card">
+            <div class="card-title">⚖️ Body composition history</div>
+            <div class="chart-wrap"><canvas id="weight-chart"></canvas></div>
+          </div>
+          <div class="card">
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Weight</th><th>BMI</th><th>Muscle kg</th><th>Visceral fat</th><th>Fat %</th><th>BMR</th></tr></thead>
+              <tbody id="body-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- CLINICAL TAB -->
+        <div class="tab-panel" id="tp-clinical">
+          <div class="card">
+            <div class="card-title">❤️ Clinical markers history</div>
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>BP sys</th><th>BP dia</th><th>Chol</th><th>HDL</th><th>LDL</th><th>eGFR</th></tr></thead>
+              <tbody id="clinical-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- LIFESTYLE TAB -->
+        <div class="tab-panel" id="tp-lifestyle">
+          <div class="card">
+            <div class="card-title">🏃 Lifestyle history</div>
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Steps</th><th>Active mins</th><th>Sleep hrs</th><th>Sleep quality</th><th>Smoking</th><th>Alcohol units</th></tr></thead>
+              <tbody id="lifestyle-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- DIETARY TAB -->
+        <div class="tab-panel" id="tp-dietary">
+          <div class="card">
+            <div class="card-title">🥗 Dietary assessment history</div>
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Quality score</th><th>Adherence</th><th>Caloric band</th><th>Protein</th><th>Notes</th></tr></thead>
+              <tbody id="dietary-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- BEHAVIOURAL TAB -->
+        <div class="tab-panel" id="tp-behavioural">
+          <div class="card">
+            <div class="card-title">🧠 Behavioural scores history</div>
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>PHQ-9</th><th>GAD-7</th><th>Readiness</th></tr></thead>
+              <tbody id="behavioural-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA ENTRY PAGE -->
+      <div class="page" id="page-entry">
+        <div style="font-size:18px;font-weight:700;color:#1D4E89;margin-bottom:4px">Data entry</div>
+        <div style="font-size:12px;color:#888;margin-bottom:16px">Enter clinical data against a patient MHOP ID</div>
+        <div class="card" style="max-width:500px">
+          <div class="form-grid">
+            <div class="fld"><label>MHOP ID</label><input type="text" id="e-mhop" placeholder="MHOP-DG-00001" oninput="this.value=this.value.toUpperCase()"></div>
+            <div class="fld"><label>Entry date</label><input type="date" id="e-date"></div>
+          </div>
+        </div>
+        <div class="tabs">
+          <button class="tab active" onclick="showEntryTab('glycaemic')">Glycaemic / CGM</button>
+          <button class="tab" onclick="showEntryTab('body')">Body composition</button>
+          <button class="tab" onclick="showEntryTab('clinical')">Clinical markers</button>
+          <button class="tab" onclick="showEntryTab('lifestyle')">Lifestyle</button>
+          <button class="tab" onclick="showEntryTab('dietary')">Dietary</button>
+          <button class="tab" onclick="showEntryTab('behavioural')">Behavioural</button>
+        </div>
+
+        <div class="tab-panel active card" id="et-glycaemic">
+          <div class="card-title">📈 Glycaemic & CGM</div>
+          <div class="form-grid">
+            <div class="fld"><label>HbA1c (mmol/mol)</label><input type="number" id="g-hba1c" step="0.1"></div>
+            <div class="fld"><label>Fasting glucose (mmol/L)</label><input type="number" id="g-fasting" step="0.1"></div>
+            <div class="fld"><label>TIR %</label><input type="number" id="g-tir" step="0.1"></div>
+            <div class="fld"><label>TAR %</label><input type="number" id="g-tar" step="0.1"></div>
+            <div class="fld"><label>TBR %</label><input type="number" id="g-tbr" step="0.1"></div>
+            <div class="fld"><label>MAGE (mmol/L)</label><input type="number" id="g-mage" step="0.1"></div>
+            <div class="fld"><label>CV %</label><input type="number" id="g-cv" step="0.1"></div>
+          </div>
+          <button class="submit-btn" onclick="saveEntry('glycaemic')">Save glycaemic data</button>
+          <div class="save-ok" id="ok-glycaemic">Saved successfully.</div>
+        </div>
+
+        <div class="tab-panel card" id="et-body">
+          <div class="card-title">⚖️ Body composition</div>
+          <div class="form-grid">
+            <div class="fld"><label>Weight (kg)</label><input type="number" id="b-weight" step="0.1"></div>
+            <div class="fld"><label>BMI (kg/m²)</label><input type="number" id="b-bmi" step="0.1"></div>
+            <div class="fld"><label>Muscle mass (kg)</label><input type="number" id="b-muscle" step="0.1"></div>
+            <div class="fld"><label>Visceral fat level</label><input type="number" id="b-visceral" step="0.1"></div>
+            <div class="fld"><label>Body fat %</label><input type="number" id="b-fatpct" step="0.1"></div>
+            <div class="fld"><label>BMR (kcal)</label><input type="number" id="b-bmr" step="1"></div>
+          </div>
+          <button class="submit-btn" onclick="saveEntry('body')">Save body composition</button>
+          <div class="save-ok" id="ok-body">Saved successfully.</div>
+        </div>
+
+        <div class="tab-panel card" id="et-clinical">
+          <div class="card-title">❤️ Clinical markers</div>
+          <div class="form-grid">
+            <div class="fld"><label>BP systolic (mmHg)</label><input type="number" id="c-bps"></div>
+            <div class="fld"><label>BP diastolic (mmHg)</label><input type="number" id="c-bpd"></div>
+            <div class="fld"><label>Total cholesterol (mmol/L)</label><input type="number" id="c-chol" step="0.1"></div>
+            <div class="fld"><label>HDL (mmol/L)</label><input type="number" id="c-hdl" step="0.1"></div>
+            <div class="fld"><label>LDL (mmol/L)</label><input type="number" id="c-ldl" step="0.1"></div>
+            <div class="fld"><label>Triglycerides (mmol/L)</label><input type="number" id="c-trig" step="0.1"></div>
+            <div class="fld"><label>eGFR (mL/min)</label><input type="number" id="c-egfr" step="0.1"></div>
+          </div>
+          <button class="submit-btn" onclick="saveEntry('clinical')">Save clinical markers</button>
+          <div class="save-ok" id="ok-clinical">Saved successfully.</div>
+        </div>
+
+        <div class="tab-panel card" id="et-lifestyle">
+          <div class="card-title">🏃 Lifestyle</div>
+          <div class="form-grid">
+            <div class="fld"><label>Daily steps</label><input type="number" id="l-steps"></div>
+            <div class="fld"><label>Active minutes</label><input type="number" id="l-active"></div>
+            <div class="fld"><label>Sleep hours</label><input type="number" id="l-sleep" step="0.5"></div>
+            <div class="fld"><label>Sleep quality</label><select id="l-sleepq"><option value="">—</option><option>Good</option><option>Fair</option><option>Poor</option></select></div>
+            <div class="fld"><label>Smoking status</label><select id="l-smoking"><option value="">—</option><option>Never</option><option>Ex-smoker</option><option>Current</option></select></div>
+            <div class="fld"><label>Alcohol units/week</label><input type="number" id="l-alcohol" step="0.5"></div>
+          </div>
+          <button class="submit-btn" onclick="saveEntry('lifestyle')">Save lifestyle data</button>
+          <div class="save-ok" id="ok-lifestyle">Saved successfully.</div>
+        </div>
+
+        <div class="tab-panel card" id="et-dietary">
+          <div class="card-title">🥗 Dietary assessment</div>
+          <div class="form-grid">
+            <div class="fld"><label>Quality score (1-10)</label><input type="number" id="d-quality" min="1" max="10"></div>
+            <div class="fld"><label>Plan adherence</label><select id="d-adherence"><option value="">—</option><option>Good</option><option>Partial</option><option>Poor</option></select></div>
+            <div class="fld"><label>Caloric band</label><select id="d-caloric"><option value="">—</option><option>Under</option><option>Target</option><option>Over</option></select></div>
+            <div class="fld"><label>Protein adequacy</label><select id="d-protein"><option value="">—</option><option>Adequate</option><option>Inadequate</option></select></div>
+          </div>
+          <div class="fld"><label>Notes</label><input type="text" id="d-notes" placeholder="Optional..."></div>
+          <button class="submit-btn" onclick="saveEntry('dietary')">Save dietary assessment</button>
+          <div class="save-ok" id="ok-dietary">Saved successfully.</div>
+        </div>
+
+        <div class="tab-panel card" id="et-behavioural">
+          <div class="card-title">🧠 Behavioural scores</div>
+          <div class="alert alert-warn">Only validated instrument scores. Session notes remain in the therapist's confidential records.</div>
+          <div class="form-grid" style="margin-top:10px">
+            <div class="fld"><label>PHQ-9 (0-27)</label><input type="number" id="bh-phq9" min="0" max="27"></div>
+            <div class="fld"><label>GAD-7 (0-21)</label><input type="number" id="bh-gad7" min="0" max="21"></div>
+            <div class="fld"><label>Readiness to change (1-10)</label><input type="number" id="bh-readiness" min="1" max="10"></div>
+          </div>
+          <button class="submit-btn" onclick="saveEntry('behavioural')">Save behavioural scores</button>
+          <div class="save-ok" id="ok-behavioural">Saved successfully.</div>
+        </div>
+      </div>
+
+      <!-- REGISTER PAGE -->
+      <div class="page" id="page-register">
+        <div style="font-size:18px;font-weight:700;color:#1D4E89;margin-bottom:4px">Register new patient</div>
+        <div style="font-size:12px;color:#888;margin-bottom:16px">A unique MHOP ID will be generated automatically</div>
+        <div class="alert alert-info">No patient name is recorded here. Full identity — name, DOB, address — must be recorded in the local hospital clinical system only.</div>
+        <div class="card" style="max-width:560px;margin-top:12px">
+          <div class="form-grid">
+            <div class="fld"><label>Year of birth</label><input type="number" id="r-doby" min="1930" max="2010" placeholder="e.g. 1968"></div>
+            <div class="fld"><label>Month of birth</label>
+              <select id="r-dobm"><option value="">— select —</option>
+                <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+                <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+              </select>
+            </div>
+            <div class="fld"><label>Sex</label><select id="r-sex"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+            <div class="fld"><label>Clinical stage</label>
+              <select id="r-stage"><option value="">—</option>
+                <option value="A">Stage A — Prediabetes / NDH</option>
+                <option value="B">Stage B — Established T2DM</option>
+                <option value="C">Stage C — Advanced β-cell failure</option>
+              </select>
+            </div>
+            <div class="fld"><label>Enrolment date</label><input type="date" id="r-date"></div>
+            <div class="fld"><label>Site code</label><input type="text" id="r-site" value="DG" readonly style="background:#f9f9f6;color:#888"></div>
+          </div>
+          <button class="submit-btn" onclick="registerPatient()">Register patient & generate MHOP ID</button>
+          <div class="reg-success" id="reg-success">
+            <h3 style="color:#085041;margin-bottom:8px">Patient registered successfully</h3>
+            <p style="font-size:12px;color:#555">The unique MHOP ID for this patient is:</p>
+            <div class="mhop-id-big" id="gen-id">—</div>
+            <p style="font-size:12px;color:#555;margin-top:8px;line-height:1.6"><strong>Important:</strong> Write this ID in the patient's local clinical record immediately. This ID is permanent and cannot be changed or reissued. The patient's full identity must remain in the secure local hospital system only.</p>
+            <button class="submit-btn" style="margin-top:12px" onclick="resetReg()">Register another patient</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- AUDIT PAGE -->
+      <div class="page" id="page-audit">
+        <div style="font-size:18px;font-weight:700;color:#1D4E89;margin-bottom:4px">Audit log</div>
+        <div style="font-size:12px;color:#888;margin-bottom:16px">Every action recorded automatically — tamper-proof and permanent</div>
+        <div class="alert alert-info">This log records every login, data entry, edit and export. It cannot be modified or deleted.</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table class="data-table">
+            <thead><tr><th>Date / time</th><th>User</th><th>Action</th><th>Patient ID</th><th>Detail</th></tr></thead>
+            <tbody id="audit-tbody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PROTOCOL PAGE -->
+      <div class="page" id="page-protocol">
+        <div style="font-size:18px;font-weight:700;color:#1D4E89;margin-bottom:4px">MHOP Protocol reference</div>
+        <div style="font-size:12px;color:#888;margin-bottom:16px">Clinical pathway across the glycaemic continuum</div>
+        <div class="card">
+          <div class="card-title">Stage A — Prediabetes / NDH (HbA1c 42–47 mmol/mol)</div>
+          <div class="metric-row"><span class="metric-label">Entry criteria</span><span class="metric-val">HbA1c 42–47 mmol/mol · preserved insulin secretion · no prior diabetes diagnosis</span></div>
+          <div class="metric-row"><span class="metric-label">TIR target</span><span class="metric-val">≥ 70%</span></div>
+          <div class="metric-row"><span class="metric-label">Primary goal</span><span class="metric-val">Remission (HbA1c &lt; 42) or stabilisation</span></div>
+          <div class="metric-row"><span class="metric-label">Escalation trigger</span><span class="metric-val">HbA1c exceeds 48 mmol/mol or progressive deterioration despite optimisation</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Stage B — Established T2DM (HbA1c &gt; 48 mmol/mol)</div>
+          <div class="metric-row"><span class="metric-label">Entry criteria</span><span class="metric-val">Confirmed T2DM · progressive insulin resistance · declining β-cell reserve</span></div>
+          <div class="metric-row"><span class="metric-label">TIR target</span><span class="metric-val">≥ 70%</span></div>
+          <div class="metric-row"><span class="metric-label">Primary goal</span><span class="metric-val">Controlled T2DM · prevent multisystem deterioration</span></div>
+          <div class="metric-row"><span class="metric-label">Escalation trigger</span><span class="metric-val">Persistent poor control · declining renal / BP / weight / foot health · advanced β-cell failure</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Stage C — Advanced T2DM with β-cell failure</div>
+          <div class="metric-row"><span class="metric-label">Entry criteria</span><span class="metric-val">Long-standing T2DM · severe β-cell failure · insulin dependence · high disease burden</span></div>
+          <div class="metric-row"><span class="metric-label">Key markers</span><span class="metric-val">C-peptide · HOMA-β · glycaemic variability · insulin requirements</span></div>
+          <div class="metric-row"><span class="metric-label">Primary goal</span><span class="metric-val">Restoration of endogenous insulin secretion · reduced insulin dependence · stabilisation</span></div>
+          <div class="metric-row"><span class="metric-label">Advanced therapy</span><span class="metric-val">Cell-based and regenerative approaches after exhaustion of conventional strategies</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">CGM targets — international consensus</div>
+          <div class="metric-row"><span class="metric-label">TIR (70–180 mg/dL)</span><span class="metric-val ok">≥ 70%</span></div>
+          <div class="metric-row"><span class="metric-label">TAR Level 1 (&gt;180 mg/dL)</span><span class="metric-val warn">&lt; 25%</span></div>
+          <div class="metric-row"><span class="metric-label">TBR Level 1 (&lt;70 mg/dL)</span><span class="metric-val bad">&lt; 4%</span></div>
+          <div class="metric-row"><span class="metric-label">TBR Level 2 (&lt;54 mg/dL)</span><span class="metric-val bad">&lt; 1%</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const URL = 'https://cefqfynyhemuaiztiyvx.supabase.co';
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNlZnFmeW55aGVtdWFpenRpeXZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1Mzg4MzQsImV4cCI6MjA5MjExNDgzNH0.5rrQVy7UhXg2YKfFxmOi0VNya1-EUcYPUbnGGjPHb9M';
+const { createClient } = supabase;
+const db = createClient(URL, KEY);
+
+let user = null;
+let patients = [];
+let currentPatient = null;
+let stageFilter = 'all';
+let hba1cChart = null;
+let weightChart = null;
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+async function signIn() {
+  if (typeof supabase === "undefined") { document.getElementById("auth-err").textContent = "System loading — please wait a moment and try again."; document.getElementById("auth-err").style.display = "block"; return; }
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  const err = document.getElementById('auth-err');
+  err.style.display = 'none';
+  if (!email || !pw) { err.textContent = 'Please enter email and password.'; err.style.display = 'block'; return; }
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pw });
+  if (error) { err.textContent = 'Sign in failed: ' + error.message; err.style.display = 'block'; return; }
+  user = data.user;
+  await logAudit('login', null, null, null, null);
+  initApp();
+}
+
+async function signOut() {
+  await logAudit('logout', null, null, null, null);
+  await db.auth.signOut();
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  user = null; patients = [];
+}
+
+db.auth.onAuthStateChange((event, session) => {
+  if (session && !user) { user = session.user; initApp(); }
+});
+
+function initApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('top-user').textContent = user.email;
+  document.getElementById('e-date').value = today();
+  document.getElementById('r-date').value = today();
+  loadAll();
+}
+
+function today() { return new Date().toISOString().split('T')[0]; }
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  const nb = document.getElementById('nb-' + p);
+  if (nb) nb.classList.add('active');
+  if (p === 'audit') loadAudit();
+}
+
+function showTab(t) {
+  document.querySelectorAll('.tab-panel').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tabs .tab').forEach(x => x.classList.remove('active'));
+  document.getElementById('tp-' + t).classList.add('active');
+  event.target.classList.add('active');
+  if (t === 'glycaemic' && currentPatient) renderGlyChart();
+  if (t === 'body' && currentPatient) renderWeightChart();
+}
+
+function showEntryTab(t) {
+  document.querySelectorAll('.tab-panel').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('#page-entry .tab').forEach(x => x.classList.remove('active'));
+  document.getElementById('et-' + t).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── LOAD ALL ──────────────────────────────────────────────────────────────────
+async function loadAll() {
+  const { data } = await db.from('patients').select('*').order('mhop_id');
+  patients = data || [];
+  renderPtList();
+  loadHome();
+}
+
+function renderPtList() {
+  const q = document.getElementById('pt-search').value.toUpperCase();
+  const filtered = patients.filter(p =>
+    (stageFilter === 'all' || p.stage === stageFilter) &&
+    (!q || p.mhop_id.includes(q))
+  );
+  const el = document.getElementById('pt-list');
+  if (!filtered.length) { el.innerHTML = '<div class="empty">No patients found</div>'; return; }
+  el.innerHTML = filtered.map(p => `
+    <div class="pt-item ${currentPatient?.mhop_id === p.mhop_id ? 'active' : ''}" onclick="openPatient('${p.mhop_id}')">
+      <div class="pt-id"><span class="stage-dot dot-${p.stage.toLowerCase()}"></span>${p.mhop_id}</div>
+      <div class="pt-meta">Stage ${p.stage} · ${p.sex || '—'} · ${p.dob_year}</div>
+    </div>`).join('');
+}
+
+function filterPts(s) { stageFilter = s; renderPtList(); }
+
+// ── HOME ──────────────────────────────────────────────────────────────────────
+async function loadHome() {
+  document.getElementById('ov-total').textContent = patients.length;
+  document.getElementById('ov-a').textContent = patients.filter(p => p.stage === 'A').length;
+  document.getElementById('ov-b').textContent = patients.filter(p => p.stage === 'B').length;
+  document.getElementById('ov-c').textContent = patients.filter(p => p.stage === 'C').length;
+
+  const { data: audit } = await db.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100);
+  const entries = (audit || []).filter(e => e.action === 'data_entry');
+  document.getElementById('ov-entries').textContent = entries.length;
+  document.getElementById('ov-today').textContent = entries.filter(e => e.created_at?.startsWith(today())).length;
+
+  document.getElementById('recent-reg').innerHTML = patients.slice(-5).reverse().map(p => `
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f5f5f0;cursor:pointer" onclick="openPatient('${p.mhop_id}')">
+      <span style="font-family:monospace;font-weight:700;color:#1D4E89;font-size:12px">${p.mhop_id}</span>
+      <span class="stage-badge badge-${p.stage.toLowerCase()}">Stage ${p.stage}</span>
+      <span style="font-size:11px;color:#888">${p.enrolled_date}</span>
+    </div>`).join('') || '<div class="empty">No patients yet</div>';
+
+  document.getElementById('recent-entries').innerHTML = (audit || []).slice(0, 5).map(e => `
+    <div style="padding:6px 0;border-bottom:1px solid #f5f5f0">
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:#888">${new Date(e.created_at).toLocaleString()}</span>
+        <span style="font-weight:700;font-size:12px">${e.action}</span>
+        <span style="font-size:12px;color:#1D4E89">${e.mhop_id || ''}</span>
+      </div>
+    </div>`).join('') || '<div class="empty">No entries yet</div>';
+}
+
+// ── OPEN PATIENT ──────────────────────────────────────────────────────────────
+async function openPatient(mhopId) {
+  currentPatient = patients.find(p => p.mhop_id === mhopId);
+  if (!currentPatient) return;
+
+  document.getElementById('pt-avatar').textContent = currentPatient.stage;
+  document.getElementById('pt-name').textContent = currentPatient.mhop_id;
+  document.getElementById('pt-sub').textContent = `${currentPatient.sex || '—'} · Born ${currentPatient.dob_year} · Site: ${currentPatient.site_code}`;
+  const sb = document.getElementById('pt-stage-badge');
+  sb.textContent = 'Stage ' + currentPatient.stage;
+  sb.className = 'stage-badge badge-' + currentPatient.stage.toLowerCase();
+  document.getElementById('pt-enrolled').textContent = 'Enrolled: ' + currentPatient.enrolled_date;
+
+  renderPtList();
+  showPage('patient');
+
+  document.querySelectorAll('#page-patient .tab-panel').forEach(x => x.classList.remove('active'));
+  document.getElementById('tp-overview').classList.add('active');
+  document.querySelectorAll('#page-patient .tabs .tab').forEach((t,i) => t.classList.toggle('active', i===0));
+
+  await loadPatientData(mhopId);
+}
+
+async function loadPatientData(id) {
+  const [g, b, c, l, d, bh] = await Promise.all([
+    db.from('glycaemic').select('*').eq('mhop_id', id).order('entry_date', { ascending: false }),
+    db.from('body_composition').select('*').eq('mhop_id', id).order('entry_date', { ascending: false }),
+    db.from('clinical_markers').select('*').eq('mhop_id', id).order('entry_date', { ascending: false }),
+    db.from('lifestyle').select('*').eq('mhop_id', id).order('entry_date', { ascending: false }),
+    db.from('dietary').select('*').eq('mhop_id', id).order('entry_date', { ascending: false }),
+    db.from('behavioural').select('*').eq('mhop_id', id).order('entry_date', { ascending: false })
+  ]);
+
+  const gd = g.data || []; const bd = b.data || []; const cd = c.data || [];
+  const ld = l.data || []; const dd = d.data || []; const bhd = bh.data || [];
+
+  // KPIs
+  const latG = gd[0]; const latB = bd[0]; const latL = ld[0];
+  setKPI('kpi-hba1c', latG?.hba1c_mmol, '< 48', v => v < 48 ? 'ok' : v < 58 ? 'warn' : 'bad');
+  setKPI('kpi-tir', latG?.tir_percent ? latG.tir_percent + '%' : null, '≥ 70%', v => parseFloat(v) >= 70 ? 'ok' : parseFloat(v) >= 50 ? 'warn' : 'bad');
+  setKPI('kpi-bmi', latB?.bmi, '< 25', v => v < 25 ? 'ok' : v < 30 ? 'warn' : 'bad');
+  setKPI('kpi-steps', latL?.daily_steps ? latL.daily_steps.toLocaleString() : null, '≥ 7000', v => parseInt(v.replace(',','')) >= 7000 ? 'ok' : parseInt(v.replace(',','')) >= 5000 ? 'warn' : 'bad');
+
+  // CGM bar
+  if (latG?.tir_percent) {
+    const tir = latG.tir_percent; const tar = (latG.tar_percent||0); const tbr = (latG.tbr_percent||0);
+    document.getElementById('cgm-bar').innerHTML = `
+      <div class="cgm-tbr" style="width:${tbr}%"></div>
+      <div class="cgm-tir" style="width:${tir}%"></div>
+      <div class="cgm-tar1" style="width:${tar}%"></div>`;
+    document.getElementById('cgm-metrics').innerHTML = `
+      <div class="metric-row"><span class="metric-label">TIR</span><span class="metric-val ${tir>=70?'ok':tir>=50?'warn':'bad'}">${tir}%</span><span class="metric-target">target ≥70%</span></div>
+      <div class="metric-row"><span class="metric-label">TAR</span><span class="metric-val ${tar<25?'ok':'bad'}">${tar}%</span><span class="metric-target">target &lt;25%</span></div>
+      <div class="metric-row"><span class="metric-label">TBR</span><span class="metric-val ${tbr<4?'ok':'bad'}">${tbr}%</span><span class="metric-target">target &lt;4%</span></div>
+      ${latG.mage ? `<div class="metric-row"><span class="metric-label">MAGE</span><span class="metric-val">${latG.mage}</span></div>` : ''}`;
+  } else { document.getElementById('cgm-metrics').innerHTML = '<div class="empty">No CGM data entered yet</div>'; }
+
+  // Body overview
+  document.getElementById('body-overview').innerHTML = latB ? `
+    <div class="metric-row"><span class="metric-label">Weight</span><span class="metric-val">${latB.weight_kg} kg</span></div>
+    <div class="metric-row"><span class="metric-label">BMI</span><span class="metric-val ${latB.bmi<25?'ok':latB.bmi<30?'warn':'bad'}">${latB.bmi}</span><span class="metric-target">target &lt;25</span></div>
+    <div class="metric-row"><span class="metric-label">Muscle mass</span><span class="metric-val">${latB.muscle_mass_kg||'—'} kg</span></div>
+    <div class="metric-row"><span class="metric-label">Visceral fat</span><span class="metric-val">${latB.visceral_fat_level||'—'}</span></div>
+    <div class="metric-row"><span class="metric-label">Body fat %</span><span class="metric-val">${latB.body_fat_percent||'—'}%</span></div>` :
+    '<div class="empty">No body composition data yet</div>';
+
+  // Clinical overview
+  const latC = cd[0];
+  document.getElementById('clinical-overview').innerHTML = latC ? `
+    <div class="metric-row"><span class="metric-label">Blood pressure</span><span class="metric-val ${latC.bp_systolic<130?'ok':latC.bp_systolic<140?'warn':'bad'}">${latC.bp_systolic||'—'}/${latC.bp_diastolic||'—'}</span><span class="metric-target">target &lt;130/80</span></div>
+    <div class="metric-row"><span class="metric-label">Total cholesterol</span><span class="metric-val">${latC.total_cholesterol||'—'}</span></div>
+    <div class="metric-row"><span class="metric-label">HDL</span><span class="metric-val">${latC.hdl||'—'}</span></div>
+    <div class="metric-row"><span class="metric-label">eGFR</span><span class="metric-val ${latC.egfr>=60?'ok':latC.egfr>=30?'warn':'bad'}">${latC.egfr||'—'}</span><span class="metric-target">target ≥60</span></div>` :
+    '<div class="empty">No clinical markers yet</div>';
+
+  // Lifestyle overview
+  document.getElementById('lifestyle-overview').innerHTML = latL ? `
+    <div class="metric-row"><span class="metric-label">Daily steps</span><span class="metric-val ${latL.daily_steps>=7000?'ok':latL.daily_steps>=5000?'warn':'bad'}">${(latL.daily_steps||0).toLocaleString()}</span><span class="metric-target">target ≥7,000</span></div>
+    <div class="metric-row"><span class="metric-label">Active minutes</span><span class="metric-val">${latL.active_minutes||'—'}</span></div>
+    <div class="metric-row"><span class="metric-label">Sleep</span><span class="metric-val">${latL.sleep_hours||'—'} hrs · ${latL.sleep_quality||'—'}</span></div>
+    <div class="metric-row"><span class="metric-label">Smoking</span><span class="metric-val">${latL.smoking_status||'—'}</span></div>` :
+    '<div class="empty">No lifestyle data yet</div>';
+
+  // Tables
+  document.getElementById('glycaemic-tbody').innerHTML = gd.length ? gd.map(r => `<tr><td>${r.entry_date}</td><td>${r.hba1c_mmol||'—'}</td><td>${r.tir_percent||'—'}</td><td>${r.tar_percent||'—'}</td><td>${r.tbr_percent||'—'}</td><td>${r.mage||'—'}</td><td>${r.cv_percent||'—'}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">No data</td></tr>';
+  document.getElementById('body-tbody').innerHTML = bd.length ? bd.map(r => `<tr><td>${r.entry_date}</td><td>${r.weight_kg||'—'}</td><td>${r.bmi||'—'}</td><td>${r.muscle_mass_kg||'—'}</td><td>${r.visceral_fat_level||'—'}</td><td>${r.body_fat_percent||'—'}</td><td>${r.bmr_kcal||'—'}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">No data</td></tr>';
+  document.getElementById('clinical-tbody').innerHTML = cd.length ? cd.map(r => `<tr><td>${r.entry_date}</td><td>${r.bp_systolic||'—'}</td><td>${r.bp_diastolic||'—'}</td><td>${r.total_cholesterol||'—'}</td><td>${r.hdl||'—'}</td><td>${r.ldl||'—'}</td><td>${r.egfr||'—'}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">No data</td></tr>';
+  document.getElementById('lifestyle-tbody').innerHTML = ld.length ? ld.map(r => `<tr><td>${r.entry_date}</td><td>${r.daily_steps||'—'}</td><td>${r.active_minutes||'—'}</td><td>${r.sleep_hours||'—'}</td><td>${r.sleep_quality||'—'}</td><td>${r.smoking_status||'—'}</td><td>${r.alcohol_units_week||'—'}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">No data</td></tr>';
+  document.getElementById('dietary-tbody').innerHTML = dd.length ? dd.map(r => `<tr><td>${r.entry_date}</td><td>${r.dietary_quality_score||'—'}</td><td>${r.plan_adherence||'—'}</td><td>${r.caloric_band||'—'}</td><td>${r.protein_adequacy||'—'}</td><td>${r.notes||'—'}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">No data</td></tr>';
+  document.getElementById('behavioural-tbody').innerHTML = bhd.length ? bhd.map(r => `<tr><td>${r.entry_date}</td><td>${r.phq9_score??'—'}</td><td>${r.gad7_score??'—'}</td><td>${r.readiness_score??'—'}</td></tr>`).join('') : '<tr><td colspan="4" class="empty">No data</td></tr>';
+
+  // Store for charts
+  currentPatient._gd = gd; currentPatient._bd = bd;
+}
+
+function setKPI(id, val, target, colorFn) {
+  const el = document.getElementById(id);
+  const sub = document.getElementById(id + '-s');
+  if (val == null) { el.textContent = '—'; if (sub) sub.textContent = ''; return; }
+  el.textContent = val;
+  el.className = 'kpi-val ' + colorFn(parseFloat(val));
+  if (sub) { sub.textContent = 'Target: ' + target; sub.className = 'kpi-sub'; }
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────────────
+function renderGlyChart() {
+  if (!currentPatient?._gd?.length) return;
+  const gd = [...currentPatient._gd].reverse();
+  if (hba1cChart) hba1cChart.destroy();
+  const ctx = document.getElementById('hba1c-chart').getContext('2d');
+  hba1cChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: gd.map(r => r.entry_date),
+      datasets: [{
+        label: 'HbA1c (mmol/mol)',
+        data: gd.map(r => r.hba1c_mmol),
+        borderColor: '#1D4E89', backgroundColor: 'rgba(29,78,137,0.08)',
+        tension: 0.3, fill: true, pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+}
+
+function renderWeightChart() {
+  if (!currentPatient?._bd?.length) return;
+  const bd = [...currentPatient._bd].reverse();
+  if (weightChart) weightChart.destroy();
+  const ctx = document.getElementById('weight-chart').getContext('2d');
+  weightChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: bd.map(r => r.entry_date),
+      datasets: [{
+        label: 'Weight (kg)',
+        data: bd.map(r => r.weight_kg),
+        borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.08)',
+        tension: 0.3, fill: true, pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+}
+
+// ── DATA ENTRY ────────────────────────────────────────────────────────────────
+async function saveEntry(type) {
+  const mhopId = document.getElementById('e-mhop').value.trim().toUpperCase();
+  const entryDate = document.getElementById('e-date').value;
+  if (!mhopId || !entryDate) { alert('Please enter the MHOP ID and entry date first.'); return; }
+
+  let row = { mhop_id: mhopId, entry_date: entryDate, created_by: user.id };
+  let table = '';
+
+  if (type === 'glycaemic') {
+    table = 'glycaemic';
+    row = { ...row, hba1c_mmol: n('g-hba1c'), fasting_glucose: n('g-fasting'), tir_percent: n('g-tir'), tar_percent: n('g-tar'), tbr_percent: n('g-tbr'), mage: n('g-mage'), cv_percent: n('g-cv') };
+  } else if (type === 'body') {
+    table = 'body_composition';
+    row = { ...row, weight_kg: n('b-weight'), bmi: n('b-bmi'), muscle_mass_kg: n('b-muscle'), visceral_fat_level: n('b-visceral'), body_fat_percent: n('b-fatpct'), bmr_kcal: n('b-bmr') };
+  } else if (type === 'clinical') {
+    table = 'clinical_markers';
+    row = { ...row, bp_systolic: n('c-bps'), bp_diastolic: n('c-bpd'), total_cholesterol: n('c-chol'), hdl: n('c-hdl'), ldl: n('c-ldl'), triglycerides: n('c-trig'), egfr: n('c-egfr') };
+  } else if (type === 'lifestyle') {
+    table = 'lifestyle';
+    row = { ...row, daily_steps: n('l-steps'), active_minutes: n('l-active'), sleep_hours: n('l-sleep'), sleep_quality: v('l-sleepq'), smoking_status: v('l-smoking'), alcohol_units_week: n('l-alcohol') };
+  } else if (type === 'dietary') {
+    table = 'dietary';
+    row = { ...row, dietary_quality_score: n('d-quality'), plan_adherence: v('d-adherence'), caloric_band: v('d-caloric'), protein_adequacy: v('d-protein'), notes: v('d-notes') };
+  } else if (type === 'behavioural') {
+    table = 'behavioural';
+    row = { ...row, phq9_score: n('bh-phq9'), gad7_score: n('bh-gad7'), readiness_score: n('bh-readiness') };
+  }
+
+  const { error } = await db.from(table).insert(row);
+  if (error) { alert('Save error: ' + error.message); return; }
+
+  await logAudit('data_entry', mhopId, table, type, null);
+  const ok = document.getElementById('ok-' + type);
+  ok.style.display = 'block';
+  setTimeout(() => ok.style.display = 'none', 3000);
+
+  if (currentPatient?.mhop_id === mhopId) loadPatientData(mhopId);
+}
+
+function n(id) { const v = document.getElementById(id)?.value; return v === '' || v == null ? null : Number(v); }
+function v(id) { const el = document.getElementById(id); return !el || el.value === '' ? null : el.value; }
+
+// ── REGISTER ──────────────────────────────────────────────────────────────────
+async function registerPatient() {
+  const doby = document.getElementById('r-doby').value;
+  const dobm = document.getElementById('r-dobm').value;
+  const sex = document.getElementById('r-sex').value;
+  const stage = document.getElementById('r-stage').value;
+  const date = document.getElementById('r-date').value;
+  if (!doby || !dobm || !sex || !stage || !date) { alert('Please complete all fields.'); return; }
+
+  const { data: idData, error: idErr } = await db.rpc('generate_mhop_id');
+  if (idErr) { alert('Error generating ID: ' + idErr.message); return; }
+
+  const { error } = await db.from('patients').insert({
+    mhop_id: idData, dob_year: parseInt(doby), dob_month: parseInt(dobm),
+    sex, stage, enrolled_date: date, site_code: 'DG', created_by: user.id
+  });
+  if (error) { alert('Registration error: ' + error.message); return; }
+
+  await logAudit('patient_registered', idData, 'patients', null, null);
+  document.getElementById('gen-id').textContent = idData;
+  document.getElementById('reg-success').style.display = 'block';
+  await loadAll();
+}
+
+function resetReg() {
+  ['r-doby','r-dobm','r-sex','r-stage'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('r-date').value = today();
+  document.getElementById('reg-success').style.display = 'none';
+}
+
+// ── AUDIT ─────────────────────────────────────────────────────────────────────
+async function logAudit(action, mhopId, table, field, val) {
+  await db.from('audit_log').insert({
+    user_id: user?.id, user_email: user?.email,
+    action, table_name: table, mhop_id: mhopId,
+    field_changed: field, new_value: val, reason: null
+  });
+}
+
+async function loadAudit() {
+  const { data } = await db.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100);
+  const tbody = document.getElementById('audit-tbody');
+  if (!data?.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No audit entries yet</td></tr>'; return; }
+  tbody.innerHTML = data.map(e => `
+    <tr>
+      <td style="white-space:nowrap">${new Date(e.created_at).toLocaleString()}</td>
+      <td>${e.user_email || '—'}</td>
+      <td><strong>${e.action}</strong></td>
+      <td style="font-family:monospace;color:#1D4E89">${e.mhop_id || '—'}</td>
+      <td>${e.field_changed ? e.field_changed + (e.new_value ? ' → ' + e.new_value : '') : '—'}</td>
+    </tr>`).join('');
+}
+</script>
+</body>
+</html>
