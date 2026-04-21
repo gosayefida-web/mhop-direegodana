@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DGH-MHOP — Diree Godana Hospital · Metabolic Health Optimisation Project</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; background: #f0f2f5; }
+
+/* ── REVIEW BAR ── */
+.review-bar {
+  background: #1a1a18;
+  color: #fff;
+  padding: 10px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.review-bar-left { font-size: 13px; }
+.review-bar-left strong { color: #f5c842; }
+.review-bar-left span { color: #aaa; font-size: 11px; margin-left: 10px; }
+.review-actions { display: flex; gap: 8px; align-items: center; }
+.rb-btn {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+  font-weight: 600;
+}
+.rb-btn.comment { background: #f5c842; color: #1a1a18; }
+.rb-btn.approve { background: #2D6A4F; color: #fff; }
+.rb-btn.lang { background: #1D4E89; color: #fff; }
+.rb-btn.save { background: #444; color: #fff; }
+.comment-count {
+  background: #c0392b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+/* ── COMMENT PANEL ── */
+.comment-panel {
+  position: fixed;
+  right: 0; top: 0; bottom: 0;
+  width: 320px;
+  background: #fff;
+  border-left: 1px solid #ddd;
+  z-index: 200;
+  display: none;
+  flex-direction: column;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+}
+.comment-panel.open { display: flex; }
+.cp-header {
+  background: #1a1a18;
+  color: #fff;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cp-header h3 { font-size: 14px; }
+.cp-close { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; }
+.cp-body { flex: 1; overflow-y: auto; padding: 16px; }
+.cp-add { padding: 16px; border-top: 1px solid #eee; background: #f9f9f6; }
+.cp-add textarea {
+  width: 100%;
+  height: 80px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  resize: none;
+  margin-bottom: 8px;
+}
+.cp-add input {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.cp-add select {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.cp-submit {
+  width: 100%;
+  padding: 8px;
+  background: #1D4E89;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+}
+.comment-item {
+  background: #f9f9f6;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.ci-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.ci-name { font-size: 12px; font-weight: 700; color: #1a1a18; }
+.ci-section { font-size: 10px; color: #1D4E89; background: #D6E4F0; padding: 2px 7px; border-radius: 10px; }
+.ci-text { font-size: 12px; color: #444; line-height: 1.5; margin-bottom: 6px; }
+.ci-meta { font-size: 10px; color: #888; }
+.ci-type { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-right: 4px; }
+.type-suggestion { background: #E8F5EE; color: #2D6A4F; }
+.type-correction { background: #FCECEA; color: #C0392B; }
+.type-question { background: #FEF3C7; color: #B45309; }
+.type-approved { background: #E8F5EE; color: #2D6A4F; }
+.ci-resolve { background: none; border: 1px solid #ddd; border-radius: 4px; padding: 2px 8px; font-size: 10px; cursor: pointer; color: #888; margin-top: 6px; }
+.ci-resolve:hover { background: #f0f0f0; }
+.no-comments { text-align: center; color: #aaa; font-size: 13px; padding: 30px 0; }
+
+/* ── SITE ── */
+.site { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; background: #fff; }
+.nav {
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+}
+.nav-logo { font-size: 14px; font-weight: 700; color: #1a1a18; display: flex; align-items: center; gap: 8px; }
+.nav-dot { width: 26px; height: 26px; border-radius: 50%; background: #D6E4F0; color: #1D4E89; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.nav-links { display: flex; gap: 18px; }
+.nav-links a { font-size: 12px; color: #666; text-decoration: none; cursor: pointer; }
+.lang-pills { display: flex; gap: 4px; }
+.lpill { font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid #ddd; background: #fff; color: #666; cursor: pointer; }
+.lpill.active { background: #D6E4F0; border-color: #1D4E89; color: #1D4E89; font-weight: 600; }
+.nav-cta { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+
+.hero { padding: 48px 28px 40px; border-bottom: 1px solid #e8e8e8; }
+.hero-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #1D4E89; margin-bottom: 10px; }
+.hero h1 { font-size: 28px; font-weight: 700; color: #1a1a18; line-height: 1.2; max-width: 560px; margin-bottom: 12px; }
+.hero h1.am { font-size: 24px; line-height: 1.6; }
+.hero-sub { font-size: 14px; color: #555; line-height: 1.7; max-width: 500px; margin-bottom: 22px; }
+.hero-sub.am { font-size: 15px; line-height: 2.1; }
+.hero-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.btn-p { font-size: 12px; font-weight: 600; padding: 8px 18px; border-radius: 6px; background: #D6E4F0; border: none; color: #1D4E89; cursor: pointer; }
+.btn-s { font-size: 12px; font-weight: 600; padding: 8px 18px; border-radius: 6px; background: #fff; border: 1px solid #ddd; color: #1a1a18; cursor: pointer; }
+.hero-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.htag { font-size: 11px; color: #666; background: #f5f5f0; border: 1px solid #e0e0d8; padding: 3px 9px; border-radius: 20px; }
+
+.stats-row { display: grid; grid-template-columns: repeat(4,1fr); border-bottom: 1px solid #e8e8e8; }
+.stat { padding: 20px 24px; border-right: 1px solid #e8e8e8; }
+.stat:last-child { border-right: none; }
+.stat-val { font-size: 26px; font-weight: 700; color: #1a1a18; }
+.stat-lbl { font-size: 11px; color: #666; margin-top: 3px; line-height: 1.4; }
+
+.sec { padding: 36px 28px; border-bottom: 1px solid #e8e8e8; }
+.sec-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #aaa; margin-bottom: 14px; }
+.sec h2 { font-size: 20px; font-weight: 700; color: #1a1a18; margin-bottom: 10px; }
+.sec h2.am { line-height: 1.6; }
+.sec p { font-size: 13px; color: #555; line-height: 1.7; max-width: 600px; margin-bottom: 14px; }
+.sec p.am { font-size: 15px; line-height: 2.1; }
+
+.stage-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.sc { border: 1px solid #e8e8e8; border-radius: 10px; padding: 18px; }
+.slabel { font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px; display: inline-block; margin-bottom: 10px; }
+.sl-a { background: #E8F5EE; color: #2D6A4F; }
+.sl-b { background: #D6E4F0; color: #1D4E89; }
+.sl-c { background: #FCECEA; color: #C0392B; }
+.sc h3 { font-size: 13px; font-weight: 700; color: #1a1a18; margin-bottom: 6px; }
+.sc h3.am { font-size: 15px; line-height: 1.8; }
+.sc p { font-size: 11px; color: #666; line-height: 1.5; margin-bottom: 10px; max-width: none; }
+.sc p.am { font-size: 13px; line-height: 2; }
+.sm { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px solid #f0f0f0; font-size: 11px; }
+.sm span:first-child { color: #888; }
+.sm span:last-child { font-weight: 600; color: #1a1a18; }
+
+.hub-intro { background: #f9f9f6; border-radius: 10px; padding: 20px 24px; margin-bottom: 22px; border: 1px solid #e8e8e8; }
+.hub-intro p { font-size: 13px; color: #555; line-height: 1.7; margin: 0; max-width: none; }
+.hub-intro p.am { font-size: 15px; line-height: 2.1; }
+
+.team-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; margin-bottom: 22px; }
+.team-card { border: 1px solid #e8e8e8; border-radius: 10px; padding: 18px; }
+.team-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 10px; }
+.av-green { background: #E8F5EE; }
+.av-blue { background: #D6E4F0; }
+.av-amber { background: #FEF3C7; }
+.av-purple { background: #f5f5f0; border: 1px solid #e0e0d8; }
+.team-card h4 { font-size: 13px; font-weight: 700; color: #1a1a18; margin-bottom: 3px; }
+.team-card h4.am { font-size: 14px; line-height: 1.8; }
+.team-card .role { font-size: 11px; color: #1D4E89; margin-bottom: 7px; font-weight: 600; }
+.team-card .role.am { font-size: 13px; line-height: 1.8; }
+.team-card p { font-size: 11px; color: #666; line-height: 1.5; margin: 0; max-width: none; }
+.team-card p.am { font-size: 13px; line-height: 1.9; }
+
+.studio-box { border: 1px solid #e8e8e8; border-radius: 10px; overflow: hidden; margin-bottom: 22px; }
+.studio-header { background: #f9f9f6; border-bottom: 1px solid #e8e8e8; padding: 14px 20px; }
+.studio-header h3 { font-size: 13px; font-weight: 700; color: #1a1a18; }
+.studio-header p { font-size: 12px; color: #666; margin-top: 3px; line-height: 1.5; max-width: none; }
+.studio-body { display: grid; grid-template-columns: 1fr 1fr; }
+.studio-col { padding: 18px 20px; }
+.studio-col:first-child { border-right: 1px solid #e8e8e8; }
+.studio-col-head { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-bottom: 12px; }
+.equip-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f5f5f0; }
+.equip-item:last-child { border-bottom: none; }
+.equip-dot { width: 6px; height: 6px; border-radius: 50%; background: #1D4E89; flex-shrink: 0; margin-top: 5px; }
+.equip-body h5 { font-size: 12px; font-weight: 700; color: #1a1a18; }
+.equip-body p { font-size: 11px; color: #666; line-height: 1.4; margin: 0; max-width: none; }
+
+.hub-note { background: #D6E4F0; border-radius: 8px; padding: 14px 18px; font-size: 12px; color: #1D4E89; line-height: 1.6; }
+.hub-note.am { font-size: 14px; line-height: 2; }
+
+.contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.cc { border: 1px solid #e8e8e8; border-radius: 10px; padding: 16px; }
+.cc h4 { font-size: 12px; font-weight: 700; color: #1a1a18; margin-bottom: 5px; }
+.cc p { font-size: 11px; color: #666; line-height: 1.5; margin: 0; max-width: none; }
+.cc-email { font-size: 11px; color: #1D4E89; margin-top: 8px; }
+
+/* ── REGISTRATION REVIEW TABLE ── */
+.reg-table-wrap { overflow-x: auto; margin-bottom: 24px; }
+.reg-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.reg-table th { background: #1D4E89; color: #fff; padding: 10px 12px; text-align: left; font-size: 11px; white-space: nowrap; }
+.reg-table td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.reg-table tr:nth-child(even) td { background: #f9f9f6; }
+.reg-table tr:hover td { background: #f0f4ff; }
+.lang-en { color: #1a1a18; }
+.lang-or { color: #2D6A4F; font-weight: 600; }
+.lang-am { color: #1D4E89; font-weight: 600; font-size: 14px; }
+.section-row td { background: #1a1a18 !important; color: #fff; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+.form-review { background: #f9f9f6; border: 1px solid #e8e8e8; border-radius: 10px; padding: 24px; max-width: 540px; margin-bottom: 24px; }
+.form-review h3 { font-size: 14px; font-weight: 700; color: #1a1a18; margin-bottom: 6px; }
+.form-review p { font-size: 12px; color: #666; margin-bottom: 18px; line-height: 1.6; max-width: none; }
+.frow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.frow.full { grid-template-columns: 1fr; }
+.fld label { font-size: 10px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
+.fld input, .fld select { width: 100%; font-size: 12px; padding: 7px 9px; border-radius: 6px; border: 1px solid #ddd; background: #fff; color: #1a1a18; font-family: Arial, sans-serif; }
+.sub-btn { width: 100%; margin-top: 12px; padding: 9px; border-radius: 6px; background: #1D4E89; border: none; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; font-family: Arial, sans-serif; }
+.fnote { font-size: 10px; color: #aaa; margin-top: 8px; text-align: center; }
+.success-msg { display: none; background: #E8F5EE; border: 1px solid #b7dfca; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #2D6A4F; margin-top: 10px; }
+
+.research-box { background: #f9f9f6; border: 1px solid #e8e8e8; border-radius: 10px; padding: 24px; }
+.research-box h3 { font-size: 14px; font-weight: 700; color: #1a1a18; margin-bottom: 8px; }
+.research-box p { font-size: 13px; color: #555; line-height: 1.7; margin-bottom: 10px; max-width: none; }
+.pub-note { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 12px; font-size: 12px; color: #666; line-height: 1.6; margin-top: 14px; }
+
+.site-footer { padding: 20px 28px; border-top: 1px solid #e8e8e8; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.site-footer p { font-size: 11px; color: #aaa; }
+
+/* ── REVIEW HIGHLIGHTS ── */
+.reviewable {
+  position: relative;
+  transition: background 0.15s;
+}
+.reviewable:hover { outline: 2px dashed #f5c842; outline-offset: 2px; }
+.reviewable::after {
+  content: '+ comment';
+  position: absolute;
+  top: -14px;
+  right: 10px;
+  font-size: 10px;
+  background: #f5c842;
+  color: #1a1a18;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 5;
+}
+.reviewable:hover::after { opacity: 1; }
+/* An invisible overlay over just the ::after so it becomes clickable */
+.reviewable-btn {
+  position: absolute;
+  top: -14px;
+  right: 10px;
+  background: #f5c842;
+  color: #1a1a18;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 10px;
+  font-family: Arial, sans-serif;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 6;
+}
+.reviewable:hover .reviewable-btn { opacity: 1; }
+
+.print-note {
+  background: #FEF3C7;
+  border: 1px solid #f5c842;
+  border-radius: 8px;
+  padding: 12px 18px;
+  font-size: 12px;
+  color: #7A5C00;
+  margin: 16px 28px;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<!-- REVIEW BAR -->
+<div class="review-bar">
+  <div class="review-bar-left">
+    <strong>DGH-MHOP Website — Review Draft</strong>
+    <span>For colleague review · April 2026</span>
+  </div>
+  <div class="review-actions">
+    <div class="lang-pills" style="margin-right:8px">
+      <button class="lpill active" onclick="setLang('en',this)" style="color:#fff;background:#1D4E89;border-color:#1D4E89">EN</button>
+      <button class="lpill" onclick="setLang('or',this)" style="border-color:#aaa">Oromo</button>
+      <button class="lpill" onclick="setLang('am',this)" style="border-color:#aaa">አማርኛ</button>
+    </div>
+    <button class="rb-btn comment" onclick="togglePanel()">💬 Comments <span class="comment-count" id="count">0</span></button>
+    <button class="rb-btn save" onclick="exportComments()">⬇ Export comments</button>
+  </div>
+</div>
+
+<div class="print-note">
+  📋 <strong>Review instructions:</strong> Hover over any section to add a comment. Use the language buttons to review English, Afaan Oromo and Amharic versions. Check the registration form section carefully. Use the Comments panel to flag corrections, suggestions or questions. Export your comments when done.
+</div>
+
+<!-- COMMENT PANEL -->
+<div class="comment-panel" id="comment-panel">
+  <div class="cp-header">
+    <h3>Review comments</h3>
+    <button class="cp-close" onclick="togglePanel()">✕</button>
+  </div>
+  <div class="cp-body" id="comment-list">
+    <div class="no-comments" id="no-comments">No comments yet.<br>Hover over any section<br>and click to add a comment.</div>
+  </div>
+  <div class="cp-add">
+    <input type="text" id="cp-name" placeholder="Your name">
+    <select id="cp-type">
+      <option value="suggestion">Suggestion</option>
+      <option value="correction">Correction needed</option>
+      <option value="question">Question</option>
+      <option value="approved">Approved ✓</option>
+    </select>
+    <select id="cp-section">
+      <option value="General">General</option>
+      <option value="Hero / title">Hero / title</option>
+      <option value="About">About the programme</option>
+      <option value="Stage A">Stage A — Prediabetes</option>
+      <option value="Stage B">Stage B — T2DM</option>
+      <option value="Stage C">Stage C — Advanced</option>
+      <option value="Health Hub intro">Health Hub intro</option>
+      <option value="Dietician">Team — Dietician</option>
+      <option value="Diabetes nurse">Team — Diabetes nurse</option>
+      <option value="Physical activity">Team — Physical activity</option>
+      <option value="Behavioural therapist">Team — Behavioural therapist</option>
+      <option value="Equipment list">Equipment list</option>
+      <option value="Registration form">Registration form</option>
+      <option value="Contact details">Contact details</option>
+      <option value="Afaan Oromo translation">Afaan Oromo translation</option>
+      <option value="Amharic translation">Amharic translation</option>
+      <option value="Research section">Research section</option>
+      <option value="Footer">Footer</option>
+    </select>
+    <textarea id="cp-text" placeholder="Your comment, correction or suggestion..."></textarea>
+    <button class="cp-submit" onclick="addComment()">Add comment</button>
+  </div>
+</div>
+
+<!-- SITE CONTENT -->
+<div class="site">
+
+<nav class="nav">
+  <div class="nav-logo">
+    <div class="nav-dot">DG</div>
+    <span id="nav-title">MHOP · Diree Godana</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <div class="nav-links">
+      <a onclick="document.getElementById('about').scrollIntoView({behavior:'smooth'})">About</a>
+      <a onclick="document.getElementById('stages').scrollIntoView({behavior:'smooth'})">Stages</a>
+      <a onclick="document.getElementById('hub').scrollIntoView({behavior:'smooth'})">Health Hub</a>
+      <a onclick="document.getElementById('signup').scrollIntoView({behavior:'smooth'})">Collaborate</a>
+    </div>
+    <button class="nav-cta" onclick="document.getElementById('signup').scrollIntoView({behavior:'smooth'})" id="nav-cta">Get involved →</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero reviewable" onclick="quickComment('Hero / title', event)">
+  <div class="hero-eyebrow" id="h-eyebrow">Diree Godana Hospital · Department of Preventive Medicine</div>
+  <h1 id="h-title">Metabolic Health Optimisation Project</h1>
+  <p class="hero-sub" id="h-sub-intro">At Diree Godana Teaching Hospital, we believe that metabolic health is not a clinical problem to be managed — it is a human story to be understood.</p>
+  <p class="hero-sub" id="h-sub" style="margin-top:14px">Metabolic Health Optimisation goes beyond managing blood sugar or controlling weight. It is about restoring your body's natural ability to produce, use, and regulate energy — efficiently, reliably, and sustainably. It is not about restriction or endless monitoring. It is about understanding how your body works and giving it exactly what it needs to work better — through the right nutrition, the right movement, the right behaviour, and the right clinical support at the right time.</p>
+  <p class="hero-sub" id="h-sub2" style="margin-top:14px">Our approach is rooted in science but applied with care for the whole person — your life, your culture, your circumstances, and your goals. Because metabolic health does not exist only in a clinic. It exists in every meal, every step, every night of sleep, and every choice made across a lifetime.</p>
+  <p class="hero-sub" id="h-sub3" style="margin-top:14px;font-style:italic;color:#1D4E89;font-weight:600">The Metabolic Health Optimisation Project at Diree Godana is built on one conviction: that every patient deserves not just to live longer — but to live stronger.</p>
+  <div class="hero-actions">
+    <button class="btn-p" id="h-btn1">Visit our Health Hub</button>
+    <button class="btn-s" id="h-btn2">Learn about the programme</button>
+  </div>
+  <div class="hero-tags">
+    <span class="htag" id="ht1">Prediabetes · T2DM · β-cell failure</span>
+    <span class="htag" id="ht2">Dietician · Diabetes nurse · Physical activity · Behavioural therapy</span>
+    <span class="htag" id="ht3">CGM · Body composition · Lifestyle</span>
+    <span class="htag" id="ht4">Open to research collaboration</span>
+    <span class="htag">Oromia · Ethiopia</span>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-row reviewable" onclick="quickComment('General', event)">
+  <div class="stat"><div class="stat-val">3</div><div class="stat-lbl" id="st1">Clinical stages across the glycaemic continuum</div></div>
+  <div class="stat"><div class="stat-val">4</div><div class="stat-lbl" id="st2">Specialist disciplines in the Health Hub team</div></div>
+  <div class="stat"><div class="stat-val">12</div><div class="stat-lbl" id="st3">Clinical data domains captured per patient</div></div>
+  <div class="stat"><div class="stat-val">CGM</div><div class="stat-lbl" id="st4">Continuous glucose monitoring integrated</div></div>
+</div>
+
+<!-- ABOUT -->
+<div class="sec reviewable" id="about" onclick="quickComment('About', event)">
+  <div class="sec-label" id="s-about-head">About the programme</div>
+  <h2 id="s-about-h2">A preventive medicine pathway for metabolic disease</h2>
+  <p id="s-about-p1">The Metabolic Health Optimisation Project (MHOP) at Diree Godana Teaching Hospital was established to provide a structured clinical pathway for patients at risk of, or living with, Type 2 Diabetes Mellitus. The programme operates across three defined clinical stages — prediabetes, established T2DM, and advanced β-cell failure — with structured escalation criteria and digital data capture.</p>
+  <p id="s-about-p2">Central to the programme is a dedicated MHOP Health Hub — a clinical space where patients are comprehensively assessed and offered the full range of interventions suited to their individual clinical needs, delivered by a specialist multidisciplinary team.</p>
+</div>
+
+<!-- STAGES -->
+<div class="sec" id="stages">
+  <div class="sec-label" id="s-stages-head">Clinical pathway</div>
+  <h2 id="s-stages-h2">Three-stage glycaemic continuum</h2>
+  <p id="s-stages-p">Each patient is assessed and managed according to their position on the glycaemic continuum, with structured escalation triggers and defined clinical outcomes at every stage.</p>
+  <div class="stage-grid">
+    <div class="sc reviewable" onclick="quickComment('Stage A', event)">
+      <span class="slabel sl-a" id="sl-a">Stage A</span>
+      <h3 id="sc-a-h">Prediabetes / NDH</h3>
+      <p id="sc-a-p">Non-diabetic hyperglycaemia with preserved endogenous insulin secretion. Focus on metabolic optimisation, lifestyle and behavioural intervention, and prevention of progression to T2DM.</p>
+      <div class="sm"><span id="sm-a1">HbA1c range</span><span>42–47 mmol/mol</span></div>
+      <div class="sm"><span id="sm-a2">TIR target</span><span>≥ 70%</span></div>
+      <div class="sm"><span id="sm-a3">Primary goal</span><span id="sm-a3v">Remission or stabilisation</span></div>
+    </div>
+    <div class="sc reviewable" onclick="quickComment('Stage B', event)">
+      <span class="slabel sl-b" id="sl-b">Stage B</span>
+      <h3 id="sc-b-h">Established T2DM</h3>
+      <p id="sc-b-p">Confirmed Type 2 Diabetes with progressive insulin resistance. Structured pharmacological, lifestyle and behavioural management with complication monitoring.</p>
+      <div class="sm"><span id="sm-b1">HbA1c range</span><span>> 48 mmol/mol</span></div>
+      <div class="sm"><span id="sm-b2">TIR target</span><span>≥ 70%</span></div>
+      <div class="sm"><span id="sm-b3">Primary goal</span><span id="sm-b3v">Control and preservation</span></div>
+    </div>
+    <div class="sc reviewable" onclick="quickComment('Stage C', event)">
+      <span class="slabel sl-c" id="sl-c">Stage C</span>
+      <h3 id="sc-c-h">Advanced β-cell failure</h3>
+      <p id="sc-c-p">Long-standing T2DM with severe β-cell failure and insulin dependence. Advanced therapies including cell-based and regenerative approaches considered where clinically appropriate.</p>
+      <div class="sm"><span id="sm-c1">HbA1c range</span><span>> 48 mmol/mol</span></div>
+      <div class="sm"><span id="sm-c2">Key marker</span><span>C-peptide / HOMA-β</span></div>
+      <div class="sm"><span id="sm-c3">Primary goal</span><span id="sm-c3v">Stabilisation & β-cell support</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- HEALTH HUB -->
+<div class="sec" id="hub">
+  <div class="sec-label" id="s-hub-head">MHOP Health Hub</div>
+  <h2 id="s-hub-h2">A dedicated metabolic health studio</h2>
+  <div class="hub-intro reviewable" onclick="quickComment('Health Hub intro', event)">
+    <p id="hub-intro-p">The MHOP Health Hub is a dedicated clinical space at Diree Godana Teaching Hospital where patients are comprehensively assessed and offered a personalised range of interventions matched to their clinical stage and individual needs. The Hub brings together four specialist disciplines — dietetics, diabetes nursing, physical activity, and behavioural therapy — supported by a comprehensive suite of clinical equipment.</p>
+  </div>
+
+  <div class="sec-label" id="hub-team-head" style="margin-top:20px">The multidisciplinary team</div>
+  <div class="team-grid">
+    <div class="team-card reviewable" onclick="quickComment('Dietician', event)">
+      <div class="team-avatar av-green">🥗</div>
+      <h4 id="tc1-h">Dietician</h4>
+      <div class="role" id="tc1-r">Nutrition & metabolic optimisation</div>
+      <p id="tc1-p">Delivers individualised nutritional assessment and therapeutic dietary intervention. Supports weight management, glycaemic control through diet, and sustainable lifestyle change across all three clinical stages.</p>
+    </div>
+    <div class="team-card reviewable" onclick="quickComment('Diabetes nurse', event)">
+      <div class="team-avatar av-blue">💉</div>
+      <h4 id="tc2-h">Diabetes Specialist Nurse</h4>
+      <div class="role" id="tc2-r">Clinical care & medication management</div>
+      <p id="tc2-p">Provides expert clinical assessment, medication review, CGM interpretation, complication screening, and patient education. Acts as the primary clinical coordinator across the glycaemic continuum.</p>
+    </div>
+    <div class="team-card reviewable" onclick="quickComment('Physical activity', event)">
+      <div class="team-avatar av-amber">🏃</div>
+      <h4 id="tc3-h">Physical Activity Specialist</h4>
+      <div class="role" id="tc3-r">Exercise prescription & rehabilitation</div>
+      <p id="tc3-p">Designs and delivers personalised exercise and physical rehabilitation programmes. Addresses sedentary behaviour, supports muscle mass preservation, and improves insulin sensitivity and cardiovascular risk profile.</p>
+    </div>
+    <div class="team-card reviewable" onclick="quickComment('Behavioural therapist', event)">
+      <div class="team-avatar av-purple">🧠</div>
+      <h4 id="tc4-h">Behavioural Therapist</h4>
+      <div class="role" id="tc4-r">Behaviour change & psychological support</div>
+      <p id="tc4-p">Provides structured behavioural therapy to support lasting lifestyle change, medication adherence, self-management, and psychological wellbeing. Addresses the behavioural determinants of metabolic health including eating behaviour, sedentary habits, sleep and stress.</p>
+    </div>
+  </div>
+
+  <div class="sec-label" id="hub-studio-head" style="margin-top:4px">Equipment & capabilities</div>
+  <div class="studio-box reviewable" onclick="quickComment('Equipment list', event)">
+    <div class="studio-header">
+      <h3 id="studio-h">MHOP Health Hub Studio</h3>
+      <p id="studio-sub">A comprehensive suite of clinical equipment supporting assessment and intervention across every domain of the MHOP protocol.</p>
+    </div>
+    <div class="studio-body">
+      <div class="studio-col">
+        <div class="studio-col-head" id="equip-head1">Assessment equipment</div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Body composition analyser (BIA)</h5><p>Weight, BMI, skeletal muscle mass, visceral fat, body fat %, total body water and basal metabolic rate.</p></div></div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Continuous Glucose Monitor (CGM)</h5><p>Real-time glycaemic monitoring — TIR, TAR, TBR, MAGE and CV% — integrated into the MHOP digital record.</p></div></div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Automated blood pressure monitor</h5><p>Validated clinical-grade BP measurement for cardiovascular risk assessment.</p></div></div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Point-of-care HbA1c analyser</h5><p>Rapid in-clinic HbA1c enabling same-appointment decision-making.</p></div></div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Foot assessment kit</h5><p>Neuropathy testing, vascular assessment and foot risk stratification.</p></div></div>
+      </div>
+      <div class="studio-col">
+        <div class="studio-col-head" id="equip-head2">Intervention & monitoring</div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Resistance training equipment</h5><p>Free weights, resistance bands and functional training tools.</p></div></div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Aerobic exercise stations</h5><p>Stationary cycle and step platforms for supervised aerobic exercise.</p></div></div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Dietary assessment tools</h5><p>Food frequency questionnaires and nutritional counselling materials in three languages.</p></div></div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Behavioural therapy resources</h5><p>Motivational interviewing guides, self-monitoring diaries, goal-setting frameworks and psychological screening instruments.</p></div></div>
+        <div class="equip-item"><div class="equip-dot"></div><div class="equip-body"><h5>Patient education resources</h5><p>Structured education materials in Afaan Oromo, Amharic and English.</p></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="hub-note" id="hub-note">Patients are offered a comprehensive initial assessment on their first visit, followed by a personalised care plan developed jointly with the multidisciplinary team.</div>
+</div>
+
+<!-- REGISTRATION REVIEW TABLE -->
+<div class="sec" id="reg-review">
+  <div class="sec-label">Registration form — translation review</div>
+  <h2>Review: Registration form in three languages</h2>
+  <p>Please review each field label and option below across all three languages. Use the comment panel to flag any corrections needed in the Afaan Oromo or Amharic translations.</p>
+
+  <div class="reg-table-wrap">
+    <table class="reg-table">
+      <thead>
+        <tr>
+          <th style="width:20%">Field / Label</th>
+          <th style="width:27%">🇬🇧 English</th>
+          <th style="width:27%">Afaan Oromo</th>
+          <th style="width:26%">አማርኛ Amharic</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="section-row"><td colspan="4">Form title & intro</td></tr>
+        <tr>
+          <td>Form title</td>
+          <td class="lang-en">Register your interest</td>
+          <td class="lang-or">Fedhii kee galmaa'i</td>
+          <td class="lang-am">ፍላጎትዎን ያስመዝግቡ</td>
+        </tr>
+        <tr>
+          <td>Intro text</td>
+          <td class="lang-en">Complete this form and a member of the MHOP team will be in touch within five working days.</td>
+          <td class="lang-or">Foormii kana guuti. Miseensi garee MHOP hanga guyyoota hojii shan keessatti sitti dhufa.</td>
+          <td class="lang-am">ይህን ቅጽ ይሙሉ። የMHOP ቡድን አባል ከአምስት የሥራ ቀናት ውስጥ ያናግርዎታል።</td>
+        </tr>
+
+        <tr class="section-row"><td colspan="4">Personal details</td></tr>
+        <tr>
+          <td>First name</td>
+          <td class="lang-en">First name</td>
+          <td class="lang-or">Maqaa duraa</td>
+          <td class="lang-am">ስም</td>
+        </tr>
+        <tr>
+          <td>Last name</td>
+          <td class="lang-en">Last name</td>
+          <td class="lang-or">Maqaa maatii</td>
+          <td class="lang-am">የአባት ስም</td>
+        </tr>
+        <tr>
+          <td>Email address</td>
+          <td class="lang-en">Email address</td>
+          <td class="lang-or">Teessoo imeelii</td>
+          <td class="lang-am">የኢሜይል አድራሻ</td>
+        </tr>
+        <tr>
+          <td>Organisation</td>
+          <td class="lang-en">Organisation</td>
+          <td class="lang-or">Dhaabbata</td>
+          <td class="lang-am">ድርጅት</td>
+        </tr>
+
+        <tr class="section-row"><td colspan="4">Enquiry type dropdown</td></tr>
+        <tr>
+          <td>Dropdown label</td>
+          <td class="lang-en">Nature of enquiry</td>
+          <td class="lang-or">Gosa gaaffii</td>
+          <td class="lang-am">የጥያቄ ዓይነት</td>
+        </tr>
+        <tr>
+          <td>Default option</td>
+          <td class="lang-en">— please select —</td>
+          <td class="lang-or">— filadhu —</td>
+          <td class="lang-am">— ይምረጡ —</td>
+        </tr>
+        <tr>
+          <td>Option 1</td>
+          <td class="lang-en">Research collaboration</td>
+          <td class="lang-or">Qorannoo waliin</td>
+          <td class="lang-am">የምርምር ትብብር</td>
+        </tr>
+        <tr>
+          <td>Option 2</td>
+          <td class="lang-en">Clinical partnership</td>
+          <td class="lang-or">Hariiroo kilinikaa</td>
+          <td class="lang-am">ክሊኒካዊ አጋርነት</td>
+        </tr>
+        <tr>
+          <td>Option 3</td>
+          <td class="lang-en">Funding or grant opportunity</td>
+          <td class="lang-or">Carraa deeggarsa</td>
+          <td class="lang-am">የፋይናንስ ዕድል</td>
+        </tr>
+        <tr>
+          <td>Option 4</td>
+          <td class="lang-en">Patient referral</td>
+          <td class="lang-or">Dhukkubsataa erguuf</td>
+          <td class="lang-am">የሕሙም ማስተላለፍ</td>
+        </tr>
+        <tr>
+          <td>Option 5</td>
+          <td class="lang-en">Other</td>
+          <td class="lang-or">Biroo</td>
+          <td class="lang-am">ሌላ</td>
+        </tr>
+
+        <tr class="section-row"><td colspan="4">Message field & submission</td></tr>
+        <tr>
+          <td>Message label</td>
+          <td class="lang-en">Brief message</td>
+          <td class="lang-or">Ergaa gabaabaa</td>
+          <td class="lang-am">አጭር መልዕክት</td>
+        </tr>
+        <tr>
+          <td>Submit button</td>
+          <td class="lang-en">Send enquiry →</td>
+          <td class="lang-or">Gaaffii ergi →</td>
+          <td class="lang-am">ጥያቄ ላክ →</td>
+        </tr>
+        <tr>
+          <td>Privacy note</td>
+          <td class="lang-en">Your details will be held securely and used only to respond to your enquiry.</td>
+          <td class="lang-or">Odeeffannoon kee nagaadhaan qabama.</td>
+          <td class="lang-am">ዝርዝርዎ በሚስጢር ይቀመጣል።</td>
+        </tr>
+        <tr>
+          <td>Success message</td>
+          <td class="lang-en">Thank you — your enquiry has been received. We will be in touch within five working days.</td>
+          <td class="lang-or">Galatoomaa — gaaffiin kee fudhattame. Guyyoota hojii shan keessatti siif deebina.</td>
+          <td class="lang-am">እናመሰግናለን — ጥያቄዎ ደርሷል። ከአምስት የሥራ ቀናት ውስጥ እናናግርዎታለን።</td>
+        </tr>
+
+        <tr class="section-row"><td colspan="4">Contact card headings</td></tr>
+        <tr>
+          <td>Card 1</td>
+          <td class="lang-en">Research collaboration</td>
+          <td class="lang-or">Qorannoo waliin</td>
+          <td class="lang-am">የምርምር ትብብር</td>
+        </tr>
+        <tr>
+          <td>Card 2</td>
+          <td class="lang-en">Clinical partnerships</td>
+          <td class="lang-or">Hariiroo kilinikaa</td>
+          <td class="lang-am">ክሊኒካዊ አጋርነት</td>
+        </tr>
+        <tr>
+          <td>Card 3</td>
+          <td class="lang-en">Funding & grants</td>
+          <td class="lang-or">Deeggarsa maallaqaa</td>
+          <td class="lang-am">ፋይናንስ እና ዕርዳታ</td>
+        </tr>
+        <tr>
+          <td>Card 4</td>
+          <td class="lang-en">Patient referrals</td>
+          <td class="lang-or">Dhukkubsataa erguuf</td>
+          <td class="lang-am">የሕሙም ማስተላለፍ</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- LIVE FORM PREVIEW -->
+<div class="sec" id="signup">
+  <div class="sec-label">Registration form — live preview</div>
+  <h2 id="form-preview-h">Registration form — as it will appear on the website</h2>
+  <p>This is how the form will look to visitors. Switch language above to preview in Afaan Oromo or Amharic.</p>
+
+  <div class="contact-grid reviewable" onclick="quickComment('Contact details', event)">
+    <div class="cc"><h4 id="cc1h">Research collaboration</h4><p id="cc1p">Joint research, data sharing agreements, co-authorship on outcomes data, and participation in multi-site studies.</p><div class="cc-email">research@direegodana.edu.et</div></div>
+    <div class="cc"><h4 id="cc2h">Clinical partnerships</h4><p id="cc2p">Other hospitals and health systems interested in adopting the MHOP pathway or Health Hub model.</p><div class="cc-email">clinical@direegodana.edu.et</div></div>
+    <div class="cc"><h4 id="cc3h">Funding & grants</h4><p id="cc3p">We are open to discussions with funders interested in supporting expansion of the programme across Oromia.</p><div class="cc-email">grants@direegodana.edu.et</div></div>
+    <div class="cc"><h4 id="cc4h">Patient referrals</h4><p id="cc4p">Clinicians wishing to refer patients into the MHOP pathway at Diree Godana Teaching Hospital.</p><div class="cc-email">referrals@direegodana.edu.et</div></div>
+  </div>
+
+  <div class="form-review reviewable" onclick="quickComment('Registration form', event)">
+    <h3 id="form-h">Register your interest</h3>
+    <p id="form-p">Complete this form and a member of the MHOP team will be in touch within five working days.</p>
+    <div class="frow">
+      <div class="fld"><label id="fl1">First name</label><input type="text" placeholder="e.g. Amina"></div>
+      <div class="fld"><label id="fl2">Last name</label><input type="text" placeholder="e.g. Bekele"></div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label id="fl3">Email address</label><input type="email" placeholder="your@email.com"></div>
+      <div class="fld"><label id="fl4">Organisation</label><input type="text" placeholder="e.g. University of Edinburgh"></div>
+    </div>
+    <div class="frow full">
+      <div class="fld"><label id="fl5">Nature of enquiry</label>
+        <select>
+          <option id="enq0">— please select —</option>
+          <option id="enq1">Research collaboration</option>
+          <option id="enq2">Clinical partnership</option>
+          <option id="enq3">Funding or grant opportunity</option>
+          <option id="enq4">Patient referral</option>
+          <option id="enq5">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="frow full">
+      <div class="fld"><label id="fl6">Brief message</label><input type="text" placeholder="Tell us briefly what you are interested in..."></div>
+    </div>
+    <button class="sub-btn" id="sub-btn" onclick="document.getElementById('success-msg').style.display='block';this.style.display='none'">Send enquiry →</button>
+    <div class="success-msg" id="success-msg">Thank you — your enquiry has been received. We will be in touch within five working days.</div>
+    <div class="fnote" id="form-note">Your details will be held securely and used only to respond to your enquiry.</div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #e8e8e8;font-size:12px;color:#555;text-align:center">
+      Or email us directly at <a href="mailto:gosaye.fida@gmail.com" style="color:#1D4E89;font-weight:600;text-decoration:none">gosaye.fida@gmail.com</a>
+    </div>
+  </div>
+</div>
+
+<!-- RESEARCH -->
+<div class="sec" id="research">
+  <div class="sec-label">Research & outcomes</div>
+  <h2>Clinical outcomes and publications</h2>
+  <div class="research-box reviewable" onclick="quickComment('Research section', event)">
+    <h3>Programme outcomes — published through formal research channels</h3>
+    <p>The MHOP programme collects structured longitudinal clinical data across all enrolled patients. In keeping with patient confidentiality and research governance standards, individual or cohort clinical data is not published on this website.</p>
+    <p>Outcomes data will be disseminated through peer-reviewed publications, conference presentations, and formal research collaboration agreements.</p>
+    <div class="pub-note">📋 If you are a researcher or clinician interested in collaborating on outcomes analysis, data sharing, or joint publication — please register your interest above.</div>
+  </div>
+</div>
+
+<div class="site-footer reviewable" onclick="quickComment('Footer', event)">
+  <p id="footer1">© 2026 Metabolic Health Optimisation Project · Diree Godana Teaching Hospital · Department of Preventive Medicine · Oromia, Ethiopia</p>
+  <p id="footer2">Developed in support of the MHOP programme · <a href="mailto:gosaye.fida@gmail.com" style="color:#1D4E89;text-decoration:none">gosaye.fida@gmail.com</a></p>
+</div>
+
+</div><!-- end site -->
+
+<script>
+// ── Language content ──────────────────────────────────────────────────────
+const T = {
+  en: {
+    'h-eyebrow':'Diree Godana Hospital · Department of Preventive Medicine',
+    'h-title':'Metabolic Health Optimisation Project',
+    'h-sub-intro':'At Diree Godana Teaching Hospital, we believe that metabolic health is not a clinical problem to be managed — it is a human story to be understood.',
+    'h-sub':'Metabolic Health Optimisation goes beyond managing blood sugar or controlling weight. It is about restoring your body\'s natural ability to produce, use, and regulate energy — efficiently, reliably, and sustainably. It is not about restriction or endless monitoring. It is about understanding how your body works and giving it exactly what it needs to work better — through the right nutrition, the right movement, the right behaviour, and the right clinical support at the right time.',
+    'h-sub2':'Our approach is rooted in science but applied with care for the whole person — your life, your culture, your circumstances, and your goals. Because metabolic health does not exist only in a clinic. It exists in every meal, every step, every night of sleep, and every choice made across a lifetime.',
+    'h-sub3':'The Metabolic Health Optimisation Project at Diree Godana is built on one conviction: that every patient deserves not just to live longer — but to live stronger.',
+    'h-btn1':'Visit our Health Hub','h-btn2':'Learn about the programme',
+    'ht1':'Prediabetes · T2DM · β-cell failure',
+    'ht2':'Dietician · Diabetes nurse · Physical activity · Behavioural therapy',
+    'ht3':'CGM · Body composition · Lifestyle','ht4':'Open to research collaboration',
+    'st1':'Clinical stages across the glycaemic continuum',
+    'st2':'Specialist disciplines in the Health Hub team',
+    'st3':'Clinical data domains captured per patient',
+    'st4':'Continuous glucose monitoring integrated',
+    's-about-head':'About the programme',
+    's-about-h2':'A preventive medicine pathway for metabolic disease',
+    's-about-p1':'The Metabolic Health Optimisation Project (MHOP) at Diree Godana Teaching Hospital was established to provide a structured clinical pathway for patients at risk of, or living with, Type 2 Diabetes Mellitus. The programme operates across three defined clinical stages — prediabetes, established T2DM, and advanced β-cell failure — with structured escalation criteria and digital data capture.',
+    's-about-p2':'Central to the programme is a dedicated MHOP Health Hub — a clinical space where patients are comprehensively assessed and offered the full range of interventions suited to their individual clinical needs, delivered by a specialist multidisciplinary team.',
+    's-stages-head':'Clinical pathway','s-stages-h2':'Three-stage glycaemic continuum',
+    's-stages-p':'Each patient is assessed and managed according to their position on the glycaemic continuum.',
+    'sl-a':'Stage A','sl-b':'Stage B','sl-c':'Stage C',
+    'sc-a-h':'Prediabetes / NDH','sc-a-p':'Non-diabetic hyperglycaemia with preserved endogenous insulin secretion. Focus on metabolic optimisation, lifestyle and behavioural intervention, and prevention of progression to T2DM.',
+    'sc-b-h':'Established T2DM','sc-b-p':'Confirmed Type 2 Diabetes with progressive insulin resistance. Structured pharmacological, lifestyle and behavioural management with complication monitoring.',
+    'sc-c-h':'Advanced β-cell failure','sc-c-p':'Long-standing T2DM with severe β-cell failure. Advanced therapies considered where clinically appropriate.',
+    'sm-a1':'HbA1c range','sm-a2':'TIR target','sm-a3':'Primary goal','sm-a3v':'Remission or stabilisation',
+    'sm-b1':'HbA1c range','sm-b2':'TIR target','sm-b3':'Primary goal','sm-b3v':'Control and preservation',
+    'sm-c1':'HbA1c range','sm-c2':'Key marker','sm-c3':'Primary goal','sm-c3v':'Stabilisation & β-cell support',
+    's-hub-head':'MHOP Health Hub','s-hub-h2':'A dedicated metabolic health studio',
+    'hub-intro-p':'The MHOP Health Hub is a dedicated clinical space where patients are comprehensively assessed and offered personalised interventions. Four specialist disciplines — dietetics, diabetes nursing, physical activity, and behavioural therapy — work together supported by comprehensive clinical equipment.',
+    'hub-team-head':'The multidisciplinary team',
+    'tc1-h':'Dietician','tc1-r':'Nutrition & metabolic optimisation',
+    'tc1-p':'Delivers individualised nutritional assessment and therapeutic dietary intervention. Supports weight management, glycaemic control and sustainable lifestyle change.',
+    'tc2-h':'Diabetes Specialist Nurse','tc2-r':'Clinical care & medication management',
+    'tc2-p':'Provides expert clinical assessment, medication review, CGM interpretation, complication screening, and patient education.',
+    'tc3-h':'Physical Activity Specialist','tc3-r':'Exercise prescription & rehabilitation',
+    'tc3-p':'Designs personalised exercise programmes. Addresses sedentary behaviour, supports muscle mass preservation and improves insulin sensitivity.',
+    'tc4-h':'Behavioural Therapist','tc4-r':'Behaviour change & psychological support',
+    'tc4-p':'Provides structured behavioural therapy to support lasting lifestyle change, medication adherence, self-management and psychological wellbeing.',
+    'hub-studio-head':'Equipment & capabilities',
+    'studio-h':'MHOP Health Hub Studio',
+    'studio-sub':'A comprehensive suite of clinical equipment supporting assessment and intervention across every domain of the MHOP protocol.',
+    'equip-head1':'Assessment equipment','equip-head2':'Intervention & monitoring',
+    'hub-note':'Patients are offered a comprehensive initial assessment on their first visit, followed by a personalised care plan developed jointly with the multidisciplinary team.',
+    'cc1h':'Research collaboration','cc1p':'Joint research, data sharing agreements, co-authorship and participation in multi-site studies.',
+    'cc2h':'Clinical partnerships','cc2p':'Other hospitals and health systems interested in adopting the MHOP pathway or Health Hub model.',
+    'cc3h':'Funding & grants','cc3p':'We are open to discussions with funders interested in supporting expansion across Oromia.',
+    'cc4h':'Patient referrals','cc4p':'Clinicians wishing to refer patients into the MHOP pathway at Diree Godana Teaching Hospital.',
+    'form-h':'Register your interest',
+    'form-p':'Complete this form and a member of the MHOP team will be in touch within five working days.',
+    'fl1':'First name','fl2':'Last name','fl3':'Email address','fl4':'Organisation',
+    'fl5':'Nature of enquiry','fl6':'Brief message',
+    'enq0':'— please select —','enq1':'Research collaboration','enq2':'Clinical partnership',
+    'enq3':'Funding or grant opportunity','enq4':'Patient referral','enq5':'Other',
+    'sub-btn':'Send enquiry →',
+    'form-note':'Your details will be held securely and used only to respond to your enquiry.',
+    'footer1':'© 2026 Metabolic Health Optimisation Project · Diree Godana Teaching Hospital · Department of Preventive Medicine · Oromia, Ethiopia',
+    'footer2':'Developed in support of the MHOP programme'
+  },
+  or: {
+    'h-eyebrow':'Hospitaala Diree Godana · Waajjira Fayyaa Ittisuu',
+    'h-title':'Pirojektii Fooyyessuu Fayyaa Metabolizimii',
+    'h-sub-intro':'Hospitaala Barsiisaa Diree Godanaatti, fayyaa metabolizimii rakkoo kilinikaa qofa osoo hin taane — seenaa namaa ta\'uutti amanna.',
+    'h-sub':'Fooyyessuu Fayyaa Metabolizimii sukkaaraa dhiigaa too\'achuu ykn ulfaatina hir\'isuu caalaa. Dandeettii uumamaa qaamaa kan humna oomishuu, fayyadamuu fi to\'achuuf — salphatti, amanamummaaan fi itti fufiinsaan — deebisuu irratti xiyyeeffata. Dhiphina ykn hordoffii hin dhumne miti. Qaamni kee akkamitti akka hojjetu hubachuufi fi kan inni caalaatti hojjetuuf waan barbaachisu kennuufi — nyaata sirrii, sochii sirrii, amala sirrii fi deeggarsa kilinikaa sirrii yeroo sirrii.',
+    'h-sub2':'Karaan keenya saayinsii irratti hundaa\'e garuu nama guutuuf qofa — jireenya kee, aadaa kee, haala kee, fi galmoota keetif — of qusannaadhaan hojjeta. Fayyaan metabolizimii kilinika keessatti qofa hin jiru. Nyaata hunda, tarkaanfii hunda, rafuu hunda fi filannoo hunda jireenya keessatti jira.',
+    'h-sub3':'Pirojektiin Fooyyessuu Fayyaa Metabolizimii Diree Godanaa amantaa tokkorratti ijaarame: dhukkubsataan hundi yeroo dheeraa jiraachuu qofa osoo hin taane — cimina qabaatee jiraachuu qaba.',
+    'h-btn1':'Buufata Fayyaa Daawwadhu','h-btn2':'Sagantaa baradhu',
+    'ht1':'Dura-dhibee · T2DM · β-cell',
+    'ht2':'Ogessa nyaataa · Narsii · Sochii qaamaa · Therapii amala',
+    'ht3':'CGM · Qaamni · Jireenya','ht4':'Qorannoo waliin banaa',
+    'st1':'Sadarkaalee kilinikaa sadii',
+    'st2':'Ogeessota garee Buufata Fayyaa afur',
+    'st3':'Dandeettiwwan deetaa 12','st4':'CGM walitti makame',
+    's-about-head':'Sagantaa waabeessuu',
+    's-about-h2':'Karaa fayyaa ittisuu dhibee metabolizimii',
+    's-about-p1':'MHOP Hospitaala Barsiisaa Diree Godanaatti dhaabbate. Galmichi namoota dhibee sukkaaraa akaakuu 2ffaa qabu ykn sodaachisu ta\'aniif karaa kilinikaa caaseffame kennuuf hundaa\'e.',
+    's-about-p2':'Sagantaa kanaa gidduutti Buufatni Fayyaa MHOP addaa dha — iddoo kilinikaa dhukkubsataan itti guutummaatti madaalamee dhaabbii dhuunfaa isaaf malanu kennamuufi.',
+    's-stages-head':'Karaa kilinikaa','s-stages-h2':'Sadarkaalee glycaemic sadii',
+    's-stages-p':'Dhukkubsataan hundi sadarkaa isaanitti madaalamee bulcha.',
+    'sl-a':'Sadarkaa A','sl-b':'Sadarkaa B','sl-c':'Sadarkaa C',
+    'sc-a-h':'Dura-dhibee sukkaaraa / NDH','sc-a-p':'Sukkaarri dhiigaa ol\'aanaa garuu dhibee miti. Fooyyessuu metabolizimii fi jireenya gaarii irratti xiyyeeffata.',
+    'sc-b-h':'Dhibee Sukkaaraa Akaakuu 2ffaa','sc-b-p':'Dhibeen sukkaaraa mirkana\'e. To\'annoo qormaataa fi jireenyi gaarii waliin hordofama.',
+    'sc-c-h':'Balaa ol\'aanaa β-cell','sc-c-p':'Dhibee sukkaaraa yeroo dheeraa. Yaala addaa ilaalamuu danda\'a.',
+    'sm-a1':'Daangaa HbA1c','sm-a2':'Galma TIR','sm-a3':'Galma duraa','sm-a3v':'Deebi\'uu ykn tasgabbaa\'uu',
+    'sm-b1':'Daangaa HbA1c','sm-b2':'Galma TIR','sm-b3':'Galma duraa','sm-b3v':'To\'annoo fi eeguu',
+    'sm-c1':'Daangaa HbA1c','sm-c2':'Mallattoo ijoo','sm-c3':'Galma duraa','sm-c3v':'Tasgabbaa\'uu & β-cell',
+    's-hub-head':'Buufata Fayyaa MHOP','s-hub-h2':'Istudiyoo fayyaa metabolizimii addaa',
+    'hub-intro-p':'Buufatni Fayyaa MHOP iddoo kilinikaa addaa yoo ta\'u, dhukkubsataan itti guutummaatti madaalamee dhaabbii dhuunfaa isaaf malanu kennamuufi. Ogeessota afur — nyaata, narsii, sochii qaamaa, therapii amala — walitti fiduun naannoo walitti makame uuma.',
+    'hub-team-head':'Gareen ogummaa',
+    'tc1-h':'Ogessa Nyaataa','tc1-r':'Nyaata & fooyyessuu metabolizimii',
+    'tc1-p':'Qorannoo nyaataa dhuunfaa fi jijjiirama jireenya fi too\'annoo sukkaaraa deeggaruu kenna.',
+    'tc2-h':'Narsii Ogummaa Sukkaaraa','tc2-r':'Kunuunsa kilinikaa & bulchiinsa qoricha',
+    'tc2-p':'Qorannoo kilinikaa, sakatta\'a qoricha, hiikuu CGM fi barnootaa dhukkubsataa kenna.',
+    'tc3-h':'Ogessa Sochii Qaamaa','tc3-r':'Dhaabbii sochii & hojimaata',
+    'tc3-p':'Sagantaalee sochii qaamaa dhuunfaa bocee fi kennu. Hanga miillaa eeguu fi fooyyessuu sodaa kalee irratti xiyyeeffata.',
+    'tc4-h':'Ogessa Therapii Amala','tc4-r':'Jijjiirama amala & deeggarsa sammuu',
+    'tc4-p':'Jijjiirama amala itti fufu, hordoffii qoricha fi fayyaa sammuu deeggaruuf therapii amala caaseffame kenna.',
+    'hub-studio-head':'Meeshaalee & dandeettiwwan',
+    'studio-h':'Istudiyoo Buufata Fayyaa MHOP',
+    'studio-sub':'Meeshaalee kilinikaa walirraa hin citne kan qorannoo fi jijjiirama fuula MHOP guutuu deeggaruu.',
+    'equip-head1':'Meeshaalee qorannoo','equip-head2':'Jijjiirama & hordoffii',
+    'hub-note':'Dhukkubsataan daawwannaa jalqabaa irratti qorannoo guutuu argata. Karoora kunuunsa dhuunfaa garee ogummaadhaan waliin mijeeffama.',
+    'cc1h':'Qorannoo waliin','cc1p':'Qorannoo walitti makamuu fi qoodinsa deetaa.',
+    'cc2h':'Hariiroo kilinikaa','cc2p':'Hospitaalonni biroo karaa MHOP ykn Buufata Fayyaa fudhachuuf fedhii qaban.',
+    'cc3h':'Deeggarsa maallaqaa','cc3p':'Sagantaa babal\'isuu Oromiyaa keessatti deeggaruuf banaa.',
+    'cc4h':'Dhukkubsataa erguuf','cc4p':'Ogeessota fayyaa dhukkubsataa erguu barbaadan.',
+    'form-h':'Fedhii kee galmaa\'i',
+    'form-p':'Foormii kana guuti. Miseensi garee MHOP guyyoota hojii shan keessatti sitti dhufa.',
+    'fl1':'Maqaa duraa','fl2':'Maqaa maatii','fl3':'Teessoo imeelii','fl4':'Dhaabbata',
+    'fl5':'Gosa gaaffii','fl6':'Ergaa gabaabaa',
+    'enq0':'— filadhu —','enq1':'Qorannoo waliin','enq2':'Hariiroo kilinikaa',
+    'enq3':'Carraa deeggarsa','enq4':'Dhukkubsataa erguuf','enq5':'Biroo',
+    'sub-btn':'Gaaffii ergi →',
+    'form-note':'Odeeffannoon kee nagaadhaan qabama.',
+    'footer1':'© 2026 Pirojektii Fooyyessuu Fayyaa Metabolizimii · Hospitaala Barsiisaa Diree Godana · Oromiyaa',
+    'footer2':'Waajjira Fayyaa Ittisuu deeggaruuf uumame'
+  },
+  am: {
+    'h-eyebrow':'ድሬ ጎዳና ሆስፒታል · የበሽታ መከላከያ ሕክምና ዲፓርትመንት',
+    'h-title':'የሜታቦሊክ ጤና ማሻሻያ ፕሮጀክት',
+    'h-sub-intro':'በድሬ ጎዳና ማስተምሪያ ሆስፒታል፣ የሜታቦሊክ ጤና የሚተዳደር ክሊኒካዊ ችግር ብቻ አይደለም — የሚረዳ የሰው ልጅ ታሪክ ነው ብለን እናምናለን።',
+    'h-sub':'የሜታቦሊክ ጤና ማሻሻያ የደም ስኳር ከመቆጣጠር ወይም ክብደት ከመቀነስ በላይ ነው። ሰውነትዎ ኃይልን ለማምረት፣ ለመጠቀም እና ለመቆጣጠር ያለውን ተፈጥሯዊ ችሎታ — በቀላሉ፣ በአስተማማኝነት እና ዘላቂ በሆነ መልኩ — ወደ ነበረበት ለመመለስ ነው። ገደብ ወይም ማለቂያ የሌለው ክትትል አይደለም። ሰውነትዎ እንዴት እንደሚሰራ መረዳት እና በትክክለኛ ምግብ፣ በትክክለኛ እንቅስቃሴ፣ በትክክለኛ ባህሪ እና በትክክለኛ ጊዜ በትክክለኛ ክሊኒካዊ ድጋፍ የሚፈልገውን መስጠት ነው።',
+    'h-sub2':'አካሄዳችን በሳይንስ ላይ የተመሰረተ ነው ነገር ግን ለሙሉ ሰው — ለእርስዎ ሕይወት፣ ለእርስዎ ባህል፣ ለእርስዎ ሁኔታ እና ለእርስዎ ግቦች — በጥንቃቄ ተፈጻሚ ይሆናል። የሜታቦሊክ ጤና በክሊኒክ ብቻ የለም። በእያንዳንዱ ምግብ፣ በእያንዳንዱ እርምጃ፣ በእያንዳንዱ ሌሊት እንቅልፍ እና በህይወት ውስጥ በሚደረግ እያንዳንዱ ምርጫ ውስጥ ይኖራል።',
+    'h-sub3':'በድሬ ጎዳና የሜታቦሊክ ጤና ማሻሻያ ፕሮጀክት በአንድ እምነት ላይ ተመስርቷል፡ እያንዳንዱ ሕሙም ረዘም ያለ ጊዜ ለመኖር ብቻ ሳይሆን — ጠንካራ ሆኖ ለመኖር ይገባዋል።',
+    'h-btn1':'የጤና ሐብ ይጎብኙ','h-btn2':'ፕሮግራሙን ይወቁ',
+    'ht1':'ቅድመ-ስኳር · T2DM · β-ሴል',
+    'ht2':'ዳዬቲሺያን · ነርስ · አካላዊ እንቅስቃሴ · የባህሪ ህክምና',
+    'ht3':'CGM · የሰውነት ቅርፅ · አኗኗር','ht4':'ለምርምር ትብብር ክፍት',
+    'st1':'ሦስት ክሊኒካዊ ደረጃዎች',
+    'st2':'አራት ልዩ ሙያዎች በጤና ሐብ ቡድን',
+    'st3':'12 የሕክምና ዳታ ዘርፎች','st4':'CGM ተቀናጅቷል',
+    's-about-head':'ስለ ፕሮግራሙ',
+    's-about-h2':'ለሜታቦሊክ በሽታ የጤና ጥበቃ መንገድ',
+    's-about-p1':'MHOP በድሬ ጎዳና ማስተምሪያ ሆስፒታል ተቋቁሟል። ፕሮግራሙ ለዓይነት 2 የስኳር በሽታ ለተጋለጡ ሕሙማን የተደራጀ ክሊኒካዊ መንገድ ለመስጠት ተቋቁሟል።',
+    's-about-p2':'ፕሮግራሙ ማዕከል ያደረገው የMHOP ጤና ሐብ ነው — ሕሙማን አጠቃላይ ምዘና ተደርጎላቸው ሕክምናዎች የሚቀርቡበት ቦታ።',
+    's-stages-head':'ክሊኒካዊ መንገድ','s-stages-h2':'ሦስት ደረጃ ያለው የስኳር ቀጣይነት',
+    's-stages-p':'እያንዳንዱ ሕሙም በደረጃቸው ይመዘናሉ።',
+    'sl-a':'ደረጃ A','sl-b':'ደረጃ B','sl-c':'ደረጃ C',
+    'sc-a-h':'ቅድመ-ስኳር / NDH','sc-a-p':'ከፍተኛ የደም ስኳር ነገር ግን የስኳር በሽታ አይደለም። ትኩረቱ ማሻሻያ እና በሽታ መከላከል ላይ ነው።',
+    'sc-b-h':'የዓይነት 2 የስኳር በሽታ','sc-b-p':'የተረጋገጠ የስኳር በሽታ። መደበኛ ህክምና እና አስተዳደር።',
+    'sc-c-h':'የላቀ β-ሴል ውድቀት','sc-c-p':'ረዥም ጊዜ የቆየ የስኳር በሽታ። የላቀ ህክምናዎች ሊታሰቡ ይችላሉ።',
+    'sm-a1':'የHbA1c ደረጃ','sm-a2':'የTIR ግብ','sm-a3':'ዋና ግብ','sm-a3v':'ማረጋጋት ወይም ማስቆም',
+    'sm-b1':'የHbA1c ደረጃ','sm-b2':'የTIR ግብ','sm-b3':'ዋና ግብ','sm-b3v':'መቆጣጠር እና ጠበቃ',
+    'sm-c1':'የHbA1c ደረጃ','sm-c2':'ዋና ምልክት','sm-c3':'ዋና ግብ','sm-c3v':'ማረጋጋት & β-ሴል ድጋፍ',
+    's-hub-head':'የMHOP ጤና ሐብ','s-hub-h2':'ልዩ የሜታቦሊክ ጤና ስቱዲዮ',
+    'hub-intro-p':'የMHOP ጤና ሐብ ሕሙማን አጠቃላይ ምዘና ተደርጎላቸው ሕክምናዎች የሚቀርቡበት ቦታ ነው። አራት ልዩ ሙያዎች — ዳዬቲሺያን፣ ነርስ፣ አካሰ ባለሙያ እና የባህሪ ቴራፒስት — አንድ ላይ ይሰራሉ።',
+    'hub-team-head':'የባለሙያ ቡድን',
+    'tc1-h':'ዳዬቲሺያን','tc1-r':'ምግብ & የሜታቦሊክ ማሻሻያ',
+    'tc1-p':'ግለሰባዊ የምግብ ምዘና ያቀርባል። የክብደት አስተዳደር እና ዘላቂ የአኗኗር ዘይቤ ለውጥ ይደግፋል።',
+    'tc2-h':'የስኳር ልዩ ነርስ','tc2-r':'ክሊኒካዊ ሕክምና & የመድኃኒት አስተዳደር',
+    'tc2-p':'ባለሙያ ምዘና፣ CGM ትርጓሜ እና ሕሙም ትምህርት ይሰጣል።',
+    'tc3-h':'የአካሰ ባለሙያ','tc3-r':'የአካሰ ትዕዛዝ & ቅልጥፍና',
+    'tc3-p':'ግለሰባዊ የአካሰ ፕሮግራሞችን ይቀርፃል። ጡንቻ ጠብቆ ማቆየትን ይደግፋል።',
+    'tc4-h':'የባህሪ ቴራፒስት','tc4-r':'የባህሪ ለውጥ & ሥነ-ልቦናዊ ድጋፍ',
+    'tc4-p':'ዘላቂ የአኗኗር ዘይቤ ለውጥ፣ የሥነ-ልቦናዊ ደህንነት እና ራስን ማስተዳደርን ለመደገፍ ቴራፒ ይሰጣል።',
+    'hub-studio-head':'መሣሪያዎች & ችሎታዎች',
+    'studio-h':'የMHOP ጤና ሐብ ስቱዲዮ',
+    'studio-sub':'የMHOP ፕሮቶኮልን ሁሉንም ዘርፎች የሚደግፍ አጠቃላይ ክሊኒካዊ መሣሪያዎች።',
+    'equip-head1':'የምዘና መሣሪያዎች','equip-head2':'ጣልቃ ገብነት & ክትትል',
+    'hub-note':'ሕሙማን በመጀመሪያ ጉብኝታቸው አጠቃላይ ምዘና ይቀርብላቸዋል። ከዚያ ከቡድን ጋር ግለሰባዊ የሕክምና እቅድ ይዘጋጃል።',
+    'cc1h':'የምርምር ትብብር','cc1p':'ጋራ ምርምር እና ዳታ ማጋራት።',
+    'cc2h':'ክሊኒካዊ አጋርነት','cc2p':'ሌሎች ሆስፒታሎች የMHOP ወይም ጤና ሐብ ሞዴል ለመቀበል።',
+    'cc3h':'ፋይናንስ እና ዕርዳታ','cc3p':'ፕሮግራሙን ለማስፋፋት ፋይናንሰሮች ክፍት ነን።',
+    'cc4h':'የሕሙም ማስተላለፍ','cc4p':'ሕሙማንን ወደ MHOP ለማስተላለፍ የሚፈልጉ ሐኪሞች።',
+    'form-h':'ፍላጎትዎን ያስመዝግቡ',
+    'form-p':'ቅጹን ይሙሉ። ቡድኑ ከአምስት ቀናት ውስጥ ያናግርዎታል።',
+    'fl1':'ስም','fl2':'የአባት ስም','fl3':'የኢሜይል አድራሻ','fl4':'ድርጅት',
+    'fl5':'የጥያቄ ዓይነት','fl6':'አጭር መልዕክት',
+    'enq0':'— ይምረጡ —','enq1':'የምርምር ትብብር','enq2':'ክሊኒካዊ አጋርነት',
+    'enq3':'የፋይናንስ ዕድል','enq4':'የሕሙም ማስተላለፍ','enq5':'ሌላ',
+    'sub-btn':'ጥያቄ ላክ →',
+    'form-note':'ዝርዝርዎ በሚስጢር ይቀመጣል።',
+    'footer1':'© 2026 የሜታቦሊክ ጤና ማሻሻያ ፕሮጀክት · ድሬ ጎዳና ማስተምሪያ ሆስፒታል · ኦሮሚያ',
+    'footer2':'የMHOP ፕሮግራም ድጋፍ ለማድረግ ተዘጋጅቷል'
+  }
+};
+
+function setLang(lang, btn) {
+  // Reset all pills to inactive visual state
+  document.querySelectorAll('.lpill').forEach(b => {
+    b.classList.remove('active');
+    b.style.background = '#fff';
+    b.style.color = '#666';
+    b.style.borderColor = '#aaa';
+  });
+  // Style the chosen pill as active
+  if (btn) {
+    btn.classList.add('active');
+    btn.style.background = '#1D4E89';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#1D4E89';
+  }
+
+  // Update the document language for accessibility and font rendering
+  document.documentElement.lang = lang;
+
+  const t = T[lang];
+  if (!t) return;
+  const isAm = lang === 'am';
+
+  // Apply the translations for every key present in this language dictionary
+  Object.keys(t).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = t[id];
+  });
+
+  // Toggle the .am typographic class where applicable
+  ['h-title','h-sub-intro','h-sub','h-sub2','h-sub3','s-about-h2','s-about-p1','s-about-p2',
+   's-stages-h2','s-stages-p','sc-a-h','sc-a-p','sc-b-h','sc-b-p','sc-c-h','sc-c-p',
+   's-hub-h2','hub-intro-p','tc1-h','tc1-r','tc1-p','tc2-h','tc2-r','tc2-p',
+   'tc3-h','tc3-r','tc3-p','tc4-h','tc4-r','tc4-p','hub-note',
+   'form-h','form-p','st1','st2','st3','st4',
+   'cc1h','cc1p','cc2h','cc2p','cc3h','cc3p','cc4h','cc4p'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (isAm) {
+      if (!el.className.includes('am')) el.className += ' am';
+    } else {
+      el.className = el.className.replace(/\s*am\b/g, '');
+    }
+  });
+}
+
+// ── Comments ───────────────────────────────────────────────────────────────
+let comments = [];
+
+function togglePanel() {
+  const p = document.getElementById('comment-panel');
+  p.classList.toggle('open');
+}
+
+function quickComment(section, evt) {
+  // If the click originated on an interactive element (button, input, link,
+  // select, textarea), let that element work normally and DO NOT open the
+  // comment panel. This fixes the bug where clicking the language pills,
+  // the enquiry form, or any link inside a reviewable section would
+  // accidentally trigger a comment prompt.
+  const e = evt || window.event;
+  if (e && e.target) {
+    const tag = e.target.tagName;
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' ||
+        tag === 'TEXTAREA' || tag === 'A' || tag === 'OPTION' ||
+        tag === 'LABEL' ||
+        e.target.closest('button, input, select, textarea, a, label')) {
+      return;
+    }
+  }
+  document.getElementById('cp-section').value = section;
+  document.getElementById('comment-panel').classList.add('open');
+  document.getElementById('cp-text').focus();
+}
+
+function addComment() {
+  const name = document.getElementById('cp-name').value.trim() || 'Reviewer';
+  const text = document.getElementById('cp-text').value.trim();
+  const type = document.getElementById('cp-type').value;
+  const section = document.getElementById('cp-section').value;
+  if(!text) { document.getElementById('cp-text').focus(); return; }
+
+  const c = {
+    id: Date.now(),
+    name, text, type, section,
+    date: new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}),
+    resolved: false
+  };
+  comments.push(c);
+  document.getElementById('cp-text').value = '';
+  renderComments();
+  updateCount();
+}
+
+function resolveComment(id) {
+  comments = comments.filter(c => c.id !== id);
+  renderComments();
+  updateCount();
+}
+
+function renderComments() {
+  const list = document.getElementById('comment-list');
+  const nc = document.getElementById('no-comments');
+  if(comments.length === 0) {
+    nc.style.display = 'block';
+    list.querySelectorAll('.comment-item').forEach(el => el.remove());
+    return;
+  }
+  nc.style.display = 'none';
+  list.querySelectorAll('.comment-item').forEach(el => el.remove());
+  comments.slice().reverse().forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'comment-item';
+    div.innerHTML = `
+      <div class="ci-header">
+        <div class="ci-name">${c.name}</div>
+        <span class="ci-section">${c.section}</span>
+      </div>
+      <div class="ci-text">${c.text}</div>
+      <div class="ci-meta">
+        <span class="ci-type type-${c.type}">${c.type.charAt(0).toUpperCase()+c.type.slice(1)}</span>
+        ${c.date}
+      </div>
+      <button class="ci-resolve" onclick="resolveComment(${c.id})">Resolve ✓</button>`;
+    list.appendChild(div);
+  });
+}
+
+function updateCount() {
+  document.getElementById('count').textContent = comments.length;
+}
+
+function exportComments() {
+  if(comments.length === 0) { alert('No comments to export yet.'); return; }
+  let txt = 'DGH-MHOP Website Review — Comments\n';
+  txt += '================================\n';
+  txt += `Exported: ${new Date().toLocaleDateString('en-GB')}\n\n`;
+  comments.forEach((c,i) => {
+    txt += `[${i+1}] ${c.section} — ${c.type.toUpperCase()}\n`;
+    txt += `Reviewer: ${c.name}\n`;
+    txt += `Comment: ${c.text}\n`;
+    txt += `Date: ${c.date}\n\n`;
+  });
+  const blob = new Blob([txt], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'DGH-MHOP_Review_Comments.txt';
+  a.click();
+}
+</script>
+</body>
+</html>
