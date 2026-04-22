@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DGH-MHOP — Diree Godana Hospital · Metabolic Health Optimisation Project</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: Arial, sans-serif; background: #f0f2f5; }
@@ -715,29 +716,29 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; }
     <h3 id="form-h">Register your interest</h3>
     <p id="form-p">Complete this form and a member of the MHOP team will be in touch within five working days.</p>
     <div class="frow">
-      <div class="fld"><label id="fl1">First name</label><input type="text" placeholder="e.g. Amina"></div>
-      <div class="fld"><label id="fl2">Last name</label><input type="text" placeholder="e.g. Bekele"></div>
+      <div class="fld"><label id="fl1">First name</label><input type="text" id="enq-first-name" placeholder="e.g. Amina"></div>
+      <div class="fld"><label id="fl2">Last name</label><input type="text" id="enq-last-name" placeholder="e.g. Bekele"></div>
     </div>
     <div class="frow">
-      <div class="fld"><label id="fl3">Email address</label><input type="email" placeholder="your@email.com"></div>
-      <div class="fld"><label id="fl4">Organisation</label><input type="text" placeholder="e.g. University of Edinburgh"></div>
+      <div class="fld"><label id="fl3">Email address</label><input type="email" id="enq-email" placeholder="your@email.com"></div>
+      <div class="fld"><label id="fl4">Organisation</label><input type="text" id="enq-org" placeholder="e.g. University of Edinburgh"></div>
     </div>
     <div class="frow full">
       <div class="fld"><label id="fl5">Nature of enquiry</label>
-        <select>
-          <option id="enq0">— please select —</option>
-          <option id="enq1">Research collaboration</option>
-          <option id="enq2">Clinical partnership</option>
-          <option id="enq3">Funding or grant opportunity</option>
-          <option id="enq4">Patient referral</option>
-          <option id="enq5">Other</option>
+        <select id="enq-type">
+          <option id="enq0" value="">— please select —</option>
+          <option id="enq1" value="Research collaboration">Research collaboration</option>
+          <option id="enq2" value="Clinical partnership">Clinical partnership</option>
+          <option id="enq3" value="Funding or grant opportunity">Funding or grant opportunity</option>
+          <option id="enq4" value="Patient referral">Patient referral</option>
+          <option id="enq5" value="Other">Other</option>
         </select>
       </div>
     </div>
     <div class="frow full">
-      <div class="fld"><label id="fl6">Brief message</label><input type="text" placeholder="Tell us briefly what you are interested in..."></div>
+      <div class="fld"><label id="fl6">Brief message</label><input type="text" id="enq-message" placeholder="Tell us briefly what you are interested in..."></div>
     </div>
-    <button class="sub-btn" id="sub-btn" onclick="document.getElementById('success-msg').style.display='block';this.style.display='none'">Send enquiry →</button>
+    <button class="sub-btn" id="sub-btn" onclick="submitEnquiry()">Send enquiry →</button>
     <div class="success-msg" id="success-msg">Thank you — your enquiry has been received. We will be in touch within five working days.</div>
     <div class="fnote" id="form-note">Your details will be held securely and used only to respond to your enquiry.</div>
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid #e8e8e8;font-size:12px;color:#555;text-align:center">
@@ -946,6 +947,9 @@ const T = {
 };
 
 function setLang(lang, btn) {
+  // Remember the current language for comment/enquiry submissions
+  currentLang = lang;
+
   // Reset all pills to inactive visual state
   document.querySelectorAll('.lpill').forEach(b => {
     b.classList.remove('active');
@@ -991,6 +995,17 @@ function setLang(lang, btn) {
   });
 }
 
+// ── Supabase connection ────────────────────────────────────────────────────
+// This points to the DEDICATED WEBSITE project (separate from the clinical
+// dashboard's Supabase project). Only website_comments and website_enquiries
+// tables live here. No patient data. No clinical records.
+const SUPABASE_URL = 'https://plwpcmnfhrlfcjbvpovf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsd3BjbW5maHJsZmNqYnZwb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1Mjk3MDksImV4cCI6MjA5MjEwNTcwOX0.Qd78t7bPGP7eWV5XI_a2EPd8T4XbEWHwrWQKGBrE4Cs';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Track the currently selected language so comments/enquiries are tagged with it
+let currentLang = 'en';
+
 // ── Comments ───────────────────────────────────────────────────────────────
 let comments = [];
 
@@ -1020,13 +1035,40 @@ function quickComment(section, evt) {
   document.getElementById('cp-text').focus();
 }
 
-function addComment() {
+async function addComment() {
   const name = document.getElementById('cp-name').value.trim() || 'Reviewer';
   const text = document.getElementById('cp-text').value.trim();
   const type = document.getElementById('cp-type').value;
   const section = document.getElementById('cp-section').value;
-  if(!text) { document.getElementById('cp-text').focus(); return; }
+  if (!text) { document.getElementById('cp-text').focus(); return; }
 
+  // Disable the button during save to prevent double-clicks
+  const btn = document.querySelector('.cp-submit');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  btn.style.opacity = '0.7';
+
+  // Save the comment to Supabase
+  const { error } = await db.from('website_comments').insert({
+    reviewer_name: name,
+    section: section,
+    comment_type: type,
+    comment_text: text,
+    language: currentLang,
+    user_agent: navigator.userAgent
+  });
+
+  btn.disabled = false;
+  btn.textContent = originalLabel;
+  btn.style.opacity = '1';
+
+  if (error) {
+    alert('Sorry — your comment could not be saved just now. Please check your internet connection and try again. (Technical details: ' + error.message + ')');
+    return;
+  }
+
+  // Also keep a local display copy so the reviewer sees their own comment in the panel
   const c = {
     id: Date.now(),
     name, text, type, section,
@@ -1040,9 +1082,65 @@ function addComment() {
 }
 
 function resolveComment(id) {
+  // Local panel only — does NOT delete from the database
   comments = comments.filter(c => c.id !== id);
   renderComments();
   updateCount();
+}
+
+// ── Enquiry form ─────────────────────────────────────────────────────────
+async function submitEnquiry() {
+  const btn = document.getElementById('sub-btn');
+  const firstName = document.getElementById('enq-first-name').value.trim();
+  const lastName  = document.getElementById('enq-last-name').value.trim();
+  const email     = document.getElementById('enq-email').value.trim();
+  const org       = document.getElementById('enq-org').value.trim();
+  const enqType   = document.getElementById('enq-type').value;
+  const message   = document.getElementById('enq-message').value.trim();
+
+  // Soft validation — require at least an email OR a name, plus a message
+  if ((!firstName && !email) || !message) {
+    alert('Please enter your name or email, and a brief message, before submitting.');
+    return;
+  }
+
+  // Disable button during save
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  btn.style.opacity = '0.7';
+
+  const { error } = await db.from('website_enquiries').insert({
+    first_name: firstName || null,
+    last_name:  lastName  || null,
+    email:      email     || null,
+    organisation: org     || null,
+    enquiry_type: enqType || null,
+    message:    message,
+    submission_language: currentLang,
+    user_agent: navigator.userAgent
+  });
+
+  btn.disabled = false;
+  btn.textContent = originalLabel;
+  btn.style.opacity = '1';
+
+  if (error) {
+    alert('Sorry — your enquiry could not be sent just now. Please check your internet connection and try again, or email us directly at gosaye.fida@gmail.com.');
+    return;
+  }
+
+  // Show success, hide the button
+  document.getElementById('success-msg').style.display = 'block';
+  btn.style.display = 'none';
+
+  // Clear the fields in case someone wants to submit another
+  document.getElementById('enq-first-name').value = '';
+  document.getElementById('enq-last-name').value  = '';
+  document.getElementById('enq-email').value      = '';
+  document.getElementById('enq-org').value        = '';
+  document.getElementById('enq-type').value       = '';
+  document.getElementById('enq-message').value    = '';
 }
 
 function renderComments() {
