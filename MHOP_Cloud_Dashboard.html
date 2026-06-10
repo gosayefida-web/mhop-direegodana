@@ -6,6 +6,7 @@
 <title>MHOP Clinical Dashboard — Diree Godana Hospital</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font-size: 13px; }
@@ -182,6 +183,8 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font
         <h3>Navigation</h3>
         <button class="nav-btn active" id="nb-home" onclick="showPage('home')">📊 Programme overview</button>
         <button class="nav-btn" id="nb-entry" onclick="showPage('entry')">📝 Data entry</button>
+        <button class="nav-btn" id="nb-upload" onclick="showPage('upload')">📤 Upload data</button>
+        <button class="nav-btn" id="nb-download" onclick="showPage('download')">⬇️ Download data</button>
         <button class="nav-btn" id="nb-register" onclick="showPage('register')">➕ Register patient</button>
         <button class="nav-btn" id="nb-audit" onclick="showPage('audit')">🔍 Audit log</button>
         <button class="nav-btn" id="nb-protocol" onclick="showPage('protocol')">📋 Protocol reference</button>
@@ -475,9 +478,11 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font
         <div class="alert alert-info">No patient name is recorded here. Full identity — name, DOB, address — must be recorded in the local hospital clinical system only.</div>
         <div class="card" style="max-width:560px;margin-top:12px">
           <div class="form-grid">
-            <div class="fld"><label>Year of birth</label><input type="number" id="r-doby" min="1930" max="2010" placeholder="e.g. 1968"></div>
+            <div class="fld"><label>Patient MRN</label><input type="text" id="r-mrn" placeholder="Hospital medical record number" oninput="this.value=this.value.toUpperCase()"></div>
+            <div class="fld"><label>Full date of birth</label><input type="date" id="r-dob-full"></div>
+            <div class="fld"><label>Year of birth</label><input type="number" id="r-doby" min="1930" max="2026" placeholder="auto-filled from DOB" readonly style="background:#f9f9f6;color:#888"></div>
             <div class="fld"><label>Month of birth</label>
-              <select id="r-dobm"><option value="">— select —</option>
+              <select id="r-dobm" disabled style="background:#f9f9f6;color:#888"><option value="">— auto-filled from DOB —</option>
                 <option value="1">January</option><option value="2">February</option><option value="3">March</option>
                 <option value="4">April</option><option value="5">May</option><option value="6">June</option>
                 <option value="7">July</option><option value="8">August</option><option value="9">September</option>
@@ -503,6 +508,100 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font
             <p style="font-size:12px;color:#555;margin-top:8px;line-height:1.6"><strong>Important:</strong> Write this ID in the patient's local clinical record immediately. This ID is permanent and cannot be changed or reissued. The patient's full identity must remain in the secure local hospital system only.</p>
             <button class="submit-btn" style="margin-top:12px" onclick="resetReg()">Register another patient</button>
           </div>
+        </div>
+      </div>
+
+      <!-- UPLOAD PAGE -->
+      <div class="page" id="page-upload">
+        <div style="font-size:18px;font-weight:700;color:#1D4E89;margin-bottom:4px">Upload data</div>
+        <div style="font-size:12px;color:#888;margin-bottom:16px">Upload an Excel (.xlsx) or CSV file from a clinical source. Every row is checked against MHOP ID, MRN and date of birth before being added.</div>
+        <div class="alert alert-info"><strong>How this works.</strong> The source clinician sends a file with one row per patient measurement. The file must include the MHOP ID, MRN, date of birth, the measurement date, and the clinical values. The dashboard hashes MRN and DOB in your browser, checks each row against the registered patient, and accepts only matching rows. Rejected rows come back with a reason, to resolve with the source.</div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="card-title">📋 Step 1 — Choose data type</div>
+          <div class="fld" style="max-width:480px">
+            <label>Which clinical source is this file from?</label>
+            <select id="up-template" onchange="updateTemplateInfo()">
+              <option value="">— select data type —</option>
+              <option value="glycaemic">Glycaemic / CGM — HbA1c, fasting glucose, TIR, TAR, TBR, MAGE, CV</option>
+              <option value="body">Body composition — weight, BMI, muscle, visceral fat, body fat %, BMR</option>
+              <option value="clinical">Clinical markers — BP, lipids, eGFR</option>
+              <option value="lifestyle">Lifestyle — steps, active minutes, sleep, smoking, alcohol</option>
+              <option value="dietary">Dietary — quality, adherence, caloric band, protein</option>
+              <option value="behavioural">Behavioural — PHQ-9, GAD-7, readiness</option>
+            </select>
+          </div>
+          <div id="template-info" style="display:none;background:#f9f9f6;border:1px solid #e8e8e8;border-radius:6px;padding:12px;margin-top:10px">
+            <p style="font-size:12px;color:#666;margin-bottom:6px"><strong>Expected columns (case-insensitive):</strong></p>
+            <p style="font-size:11px;font-family:'Courier New',monospace;background:#fff;padding:8px;border-radius:4px;margin-bottom:8px" id="tinfo-cols">—</p>
+            <button class="submit-btn" style="padding:5px 12px;font-size:11px" onclick="downloadTemplate()">⬇ Download blank template</button>
+          </div>
+        </div>
+
+        <div class="card" id="up-step2" style="display:none">
+          <div class="card-title">📎 Step 2 — Attach the file</div>
+          <div style="border:2px dashed #B8D5EE;border-radius:8px;padding:30px;text-align:center;background:#F8FBFD;cursor:pointer" id="up-dropzone" onclick="document.getElementById('up-file').click()">
+            <div style="font-size:36px;color:#1D4E89;margin-bottom:8px">📤</div>
+            <div style="font-size:14px;color:#444;font-weight:700">Click here to select the file</div>
+            <div style="font-size:11px;color:#888;margin-top:4px">or drag and drop a .xlsx or .csv file</div>
+            <input type="file" id="up-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onFileChosen(event)">
+          </div>
+          <div id="up-file-info" style="display:none;margin-top:12px"></div>
+        </div>
+
+        <div class="card" id="up-step3" style="display:none">
+          <div class="card-title">▶ Step 3 — Verify and upload</div>
+          <p style="font-size:12px;color:#666;margin-bottom:12px">Pressing Upload reads the file, hashes MRN and DOB in your browser, checks each row against the registered patient, and saves matching rows. Plaintext MRN and DOB never leave your computer.</p>
+          <button class="submit-btn" onclick="doUpload()">Verify rows and upload</button>
+          <div class="alert" id="up-error" style="display:none;margin-top:10px;background:#FCECEA;color:#A32D2D;border:1px solid #f09595"></div>
+        </div>
+
+        <div class="card" id="up-progress" style="display:none">
+          <div class="card-title">⏳ Processing</div>
+          <p id="up-progress-text" style="font-size:12px;color:#666">Starting...</p>
+        </div>
+
+        <div class="card" id="up-summary" style="display:none">
+          <div class="card-title">✅ Upload summary</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:14px">
+            <div style="background:#f9f9f6;border-radius:6px;padding:12px;text-align:center">
+              <div style="font-size:24px;font-weight:700;color:#1D4E89" id="sum-total">0</div>
+              <div style="font-size:10px;color:#888;text-transform:uppercase;margin-top:4px">Total rows submitted</div>
+            </div>
+            <div style="background:#f9f9f6;border-radius:6px;padding:12px;text-align:center">
+              <div style="font-size:24px;font-weight:700;color:#166E3F" id="sum-ok">0</div>
+              <div style="font-size:10px;color:#888;text-transform:uppercase;margin-top:4px">Accepted</div>
+            </div>
+            <div style="background:#f9f9f6;border-radius:6px;padding:12px;text-align:center">
+              <div style="font-size:24px;font-weight:700;color:#A32D2D" id="sum-rej">0</div>
+              <div style="font-size:10px;color:#888;text-transform:uppercase;margin-top:4px">Rejected</div>
+            </div>
+          </div>
+          <div id="rejection-section" style="display:none;margin-top:18px">
+            <h4 style="color:#A32D2D;font-size:13px;margin-bottom:8px">Rejected rows — to resolve with the source</h4>
+            <button class="submit-btn" onclick="downloadRejections()" style="margin-bottom:10px;background:#f0f0f0;color:#444">⬇ Download rejections Excel</button>
+            <div style="max-height:300px;overflow-y:auto;border:1px solid #f0f0f0;border-radius:6px">
+              <table style="width:100%;border-collapse:collapse;font-size:11px">
+                <thead><tr style="background:#FCECEA;color:#A32D2D"><th style="padding:8px;text-align:left">Row</th><th style="padding:8px;text-align:left">MHOP ID</th><th style="padding:8px;text-align:left">Reason</th></tr></thead>
+                <tbody id="rejection-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div style="margin-top:16px"><button class="submit-btn" onclick="resetUpload()">Upload another file</button></div>
+        </div>
+      </div>
+
+      <!-- DOWNLOAD PAGE -->
+      <div class="page" id="page-download">
+        <div style="font-size:18px;font-weight:700;color:#1D4E89;margin-bottom:4px">Download data</div>
+        <div style="font-size:12px;color:#888;margin-bottom:16px">Download the full cohort as an Excel file. One row per patient, every variable as a column.</div>
+        <div class="alert alert-info"><strong>What you get.</strong> A single Excel workbook with one sheet containing one row per enrolled patient. Each row shows the patient's MHOP ID, demographics, stage, the latest value of every recorded clinical variable, and the date each was measured. Open it in Excel, filter, sort, draw charts, or copy into a memo.</div>
+        <div class="card" style="margin-top:12px">
+          <div class="card-title">📥 Cohort download</div>
+          <p style="font-size:12px;color:#666;margin-bottom:14px">Pressing Download builds the file from the live cloud database and saves it to your Downloads folder. Every download is recorded in the audit log.</p>
+          <button class="submit-btn" id="btn-download" onclick="doDownload()">⬇ Download cohort Excel</button>
+          <div class="alert" id="dl-error" style="display:none;margin-top:10px;background:#FCECEA;color:#A32D2D;border:1px solid #f09595"></div>
+          <div class="alert alert-success" id="dl-success" style="display:none;margin-top:10px"></div>
         </div>
       </div>
 
@@ -885,31 +984,77 @@ function n(id) { const v = document.getElementById(id)?.value; return v === '' |
 function v(id) { const el = document.getElementById(id); return !el || el.value === '' ? null : el.value; }
 
 // ── REGISTER ──────────────────────────────────────────────────────────────────
+
+// Auto-fill year/month when the full DOB is set
+document.addEventListener('DOMContentLoaded', () => {
+  const dobFull = document.getElementById('r-dob-full');
+  if (dobFull) {
+    dobFull.addEventListener('change', () => {
+      const v = dobFull.value;
+      if (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        document.getElementById('r-doby').value = parseInt(v.slice(0,4), 10);
+        document.getElementById('r-dobm').value = String(parseInt(v.slice(5,7), 10));
+      }
+    });
+  }
+});
+
+// SHA-256 hashing in the browser (used by registration and upload)
+async function sha256Hex(text) {
+  const enc = new TextEncoder();
+  const data = enc.encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Normalisation so registration and upload hash identically
+function normaliseMRN(mrn) { return (mrn || '').trim().toUpperCase(); }
+function normaliseDOB(dob) {
+  if (!dob) return '';
+  const s = dob.toString().trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) { const [, d, mo, y] = m; return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`; }
+  return s;
+}
+
 async function registerPatient() {
-  const doby = document.getElementById('r-doby').value;
-  const dobm = document.getElementById('r-dobm').value;
+  const mrn = normaliseMRN(document.getElementById('r-mrn').value);
+  const dobFull = document.getElementById('r-dob-full').value;
   const sex = document.getElementById('r-sex').value;
   const stage = document.getElementById('r-stage').value;
   const date = document.getElementById('r-date').value;
-  if (!doby || !dobm || !sex || !stage || !date) { alert('Please complete all fields.'); return; }
+
+  if (!mrn || !dobFull || !sex || !stage || !date) {
+    alert('Please complete all fields — MRN, full date of birth, sex, stage and enrolment date are all required.'); return;
+  }
+
+  // Hash MRN and DOB locally — plaintext is never sent to the server
+  const mrnHash = await sha256Hex(mrn);
+  const dobHash = await sha256Hex(normaliseDOB(dobFull));
+
+  const doby = parseInt(dobFull.slice(0, 4), 10);
+  const dobm = parseInt(dobFull.slice(5, 7), 10);
 
   const { data: idData, error: idErr } = await db.rpc('generate_mhop_id');
   if (idErr) { alert('Error generating ID: ' + idErr.message); return; }
 
   const { error } = await db.from('patients').insert({
-    mhop_id: idData, dob_year: parseInt(doby), dob_month: parseInt(dobm),
-    sex, stage, enrolled_date: date, site_code: 'DG', created_by: user.id
+    mhop_id: idData, dob_year: doby, dob_month: dobm,
+    sex, stage, enrolled_date: date, site_code: 'DG',
+    mrn_hash: mrnHash, dob_hash: dobHash,
+    created_by: user.id
   });
   if (error) { alert('Registration error: ' + error.message); return; }
 
-  await logAudit('patient_registered', idData, 'patients', null, null);
+  await logAudit('patient_registered', idData, 'patients', null, 'New patient enrolled (triangulation-ready)');
   document.getElementById('gen-id').textContent = idData;
   document.getElementById('reg-success').style.display = 'block';
   await loadAll();
 }
 
 function resetReg() {
-  ['r-doby','r-dobm','r-sex','r-stage'].forEach(id => document.getElementById(id).value = '');
+  ['r-mrn','r-dob-full','r-doby','r-dobm','r-sex','r-stage'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('r-date').value = today();
   document.getElementById('reg-success').style.display = 'none';
 }
@@ -935,6 +1080,394 @@ async function loadAudit() {
       <td style="font-family:monospace;color:#1D4E89">${e.mhop_id || '—'}</td>
       <td>${e.field_changed ? e.field_changed + (e.new_value ? ' → ' + e.new_value : '') : '—'}</td>
     </tr>`).join('');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// UPLOAD — Excel/CSV with three-way triangulation
+// ════════════════════════════════════════════════════════════════════════
+
+const UPLOAD_TEMPLATES = {
+  glycaemic: { label:'Glycaemic / CGM', table:'glycaemic',
+    columns:['mhop_id','mrn','dob','entry_date','hba1c_mmol','fasting_glucose','tir_percent','tar_percent','tbr_percent','mage','cv_percent'],
+    clinical:['hba1c_mmol','fasting_glucose','tir_percent','tar_percent','tbr_percent','mage','cv_percent'] },
+  body: { label:'Body composition', table:'body_composition',
+    columns:['mhop_id','mrn','dob','entry_date','weight_kg','bmi','muscle_mass_kg','visceral_fat_level','body_fat_percent','bmr_kcal'],
+    clinical:['weight_kg','bmi','muscle_mass_kg','visceral_fat_level','body_fat_percent','bmr_kcal'] },
+  clinical: { label:'Clinical markers', table:'clinical_markers',
+    columns:['mhop_id','mrn','dob','entry_date','bp_systolic','bp_diastolic','total_cholesterol','hdl','ldl','triglycerides','egfr'],
+    clinical:['bp_systolic','bp_diastolic','total_cholesterol','hdl','ldl','triglycerides','egfr'] },
+  lifestyle: { label:'Lifestyle', table:'lifestyle',
+    columns:['mhop_id','mrn','dob','entry_date','daily_steps','active_minutes','sleep_hours','sleep_quality','smoking_status','alcohol_units_week'],
+    clinical:['daily_steps','active_minutes','sleep_hours','sleep_quality','smoking_status','alcohol_units_week'],
+    textCols:['sleep_quality','smoking_status'] },
+  dietary: { label:'Dietary', table:'dietary',
+    columns:['mhop_id','mrn','dob','entry_date','dietary_quality_score','plan_adherence','caloric_band','protein_adequacy','notes'],
+    clinical:['dietary_quality_score','plan_adherence','caloric_band','protein_adequacy','notes'],
+    textCols:['plan_adherence','caloric_band','protein_adequacy','notes'] },
+  behavioural: { label:'Behavioural', table:'behavioural',
+    columns:['mhop_id','mrn','dob','entry_date','phq9_score','gad7_score','readiness_score'],
+    clinical:['phq9_score','gad7_score','readiness_score'] }
+};
+
+let uploadFile = null;
+let uploadTemplate = null;
+let uploadRejectedRows = null;
+
+function updateTemplateInfo() {
+  const tKey = document.getElementById('up-template').value;
+  if (!tKey) {
+    document.getElementById('template-info').style.display = 'none';
+    document.getElementById('up-step2').style.display = 'none';
+    return;
+  }
+  uploadTemplate = tKey;
+  const t = UPLOAD_TEMPLATES[tKey];
+  document.getElementById('template-info').style.display = 'block';
+  document.getElementById('up-step2').style.display = 'block';
+  document.getElementById('tinfo-cols').textContent = t.columns.join(', ');
+}
+
+function downloadTemplate() {
+  if (!uploadTemplate) return;
+  const t = UPLOAD_TEMPLATES[uploadTemplate];
+  const ws = XLSX.utils.aoa_to_sheet([t.columns, t.columns.map(() => '')]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, t.label.slice(0, 31));
+  XLSX.writeFile(wb, `mhop_template_${uploadTemplate}.xlsx`);
+}
+
+function onFileChosen(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  uploadFile = f;
+  document.getElementById('up-file-info').innerHTML =
+    `<div style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:#E6F1FB;border-radius:16px;font-size:12px;color:#1D4E89">📄 ${f.name} (${(f.size/1024).toFixed(1)} KB) <button onclick="clearFile()" style="background:none;border:none;color:#A32D2D;cursor:pointer;font-size:14px">×</button></div>`;
+  document.getElementById('up-file-info').style.display = 'block';
+  document.getElementById('up-step3').style.display = 'block';
+}
+
+function clearFile() {
+  uploadFile = null;
+  document.getElementById('up-file-info').style.display = 'none';
+  document.getElementById('up-file').value = '';
+  document.getElementById('up-step3').style.display = 'none';
+}
+
+async function readSpreadsheetFile(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type:'array', cellDates:true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval:'', raw:false });
+  return rows.map(r => {
+    const out = {};
+    for (const k of Object.keys(r)) out[k.trim().toLowerCase()] = r[k];
+    return out;
+  });
+}
+
+async function doUpload() {
+  const errEl = document.getElementById('up-error');
+  errEl.style.display = 'none';
+
+  if (!uploadFile || !uploadTemplate) {
+    errEl.textContent = 'Please choose a data type and a file first.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('up-step3').style.display = 'none';
+  document.getElementById('up-progress').style.display = 'block';
+  document.getElementById('up-progress-text').textContent = 'Reading file...';
+
+  let rows;
+  try { rows = await readSpreadsheetFile(uploadFile); }
+  catch (e) { showUploadError('Could not read the file: ' + e.message); return; }
+
+  if (!rows || rows.length === 0) { showUploadError('File contains no data rows.'); return; }
+
+  const t = UPLOAD_TEMPLATES[uploadTemplate];
+  const required = ['mhop_id','mrn','dob','entry_date'];
+  const headers = Object.keys(rows[0]);
+  const missing = required.filter(r => !headers.includes(r));
+  if (missing.length > 0) {
+    showUploadError('File is missing required columns: ' + missing.join(', ') + '. Use the blank template if needed.');
+    return;
+  }
+
+  const accepted = [];
+  const rejected = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    document.getElementById('up-progress-text').textContent = `Processing row ${i+1} of ${rows.length}...`;
+
+    const rowNum = i + 2;
+    const mhopId = (r.mhop_id || '').toString().trim().toUpperCase();
+    const mrn = r.mrn ? r.mrn.toString() : '';
+    const dob = r.dob ? r.dob.toString() : '';
+    const entryDate = r.entry_date ? r.entry_date.toString().slice(0,10) : '';
+
+    if (!mhopId) { rejected.push({rowNum, mhopId:'', reason:'MHOP_ID_MISSING', raw:r}); continue; }
+    if (!/^MHOP-DG-\d{5}$/i.test(mhopId)) { rejected.push({rowNum, mhopId, reason:'MHOP_ID_FORMAT', raw:r}); continue; }
+    if (!mrn) { rejected.push({rowNum, mhopId, reason:'MRN_MISSING', raw:r}); continue; }
+    if (!dob) { rejected.push({rowNum, mhopId, reason:'DOB_MISSING', raw:r}); continue; }
+    if (!entryDate) { rejected.push({rowNum, mhopId, reason:'ENTRY_DATE_MISSING', raw:r}); continue; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) { rejected.push({rowNum, mhopId, reason:'ENTRY_DATE_INVALID', raw:r}); continue; }
+    if (new Date(entryDate) > new Date()) { rejected.push({rowNum, mhopId, reason:'ENTRY_DATE_FUTURE', raw:r}); continue; }
+
+    const mrnHash = await sha256Hex(normaliseMRN(mrn));
+    const dobHash = await sha256Hex(normaliseDOB(dob));
+
+    let verdict;
+    try {
+      const { data, error } = await db.rpc('verify_triangulation', {
+        p_mhop_id: mhopId, p_mrn_hash: mrnHash, p_dob_hash: dobHash
+      });
+      if (error) { rejected.push({rowNum, mhopId, reason:'VERIFY_ERROR: ' + error.message, raw:r}); continue; }
+      verdict = data;
+    } catch (e) { rejected.push({rowNum, mhopId, reason:'VERIFY_ERROR: ' + e.message, raw:r}); continue; }
+
+    if (!verdict || !verdict.ok) {
+      rejected.push({rowNum, mhopId, reason:(verdict && verdict.reason) || 'UNKNOWN_REJECTION', raw:r});
+      continue;
+    }
+
+    const insertRow = { mhop_id:mhopId, entry_date:entryDate, created_by:user.id };
+    const textCols = t.textCols || [];
+    let hasValue = false;
+    for (const col of t.clinical) {
+      const raw = r[col];
+      if (raw === undefined || raw === '' || raw === null) continue;
+      if (textCols.includes(col)) { insertRow[col] = String(raw); }
+      else {
+        const n = parseFloat(raw);
+        insertRow[col] = !isNaN(n) ? n : String(raw);
+      }
+      hasValue = true;
+    }
+
+    if (!hasValue) { rejected.push({rowNum, mhopId, reason:'NO_CLINICAL_VALUES', raw:r}); continue; }
+
+    try {
+      const { error: insErr } = await db.from(t.table).insert(insertRow);
+      if (insErr) { rejected.push({rowNum, mhopId, reason:'INSERT_ERROR: ' + insErr.message, raw:r}); continue; }
+      accepted.push({rowNum, mhopId});
+    } catch (e) { rejected.push({rowNum, mhopId, reason:'INSERT_ERROR: ' + e.message, raw:r}); }
+  }
+
+  try {
+    await logAudit('data_upload', null, t.table, 'bulk_upload',
+      `${accepted.length} accepted, ${rejected.length} rejected (${t.label})`);
+  } catch (e) { /* non-fatal */ }
+
+  uploadRejectedRows = rejected;
+  document.getElementById('up-progress').style.display = 'none';
+  document.getElementById('up-summary').style.display = 'block';
+  document.getElementById('sum-total').textContent = rows.length;
+  document.getElementById('sum-ok').textContent = accepted.length;
+  document.getElementById('sum-rej').textContent = rejected.length;
+
+  if (rejected.length > 0) {
+    document.getElementById('rejection-section').style.display = 'block';
+    document.getElementById('rejection-tbody').innerHTML =
+      rejected.slice(0, 200).map(r =>
+        `<tr><td style="padding:8px;border-bottom:1px solid #f0f0f0">${r.rowNum}</td><td style="padding:8px;border-bottom:1px solid #f0f0f0;font-family:monospace">${r.mhopId||'—'}</td><td style="padding:8px;border-bottom:1px solid #f0f0f0;color:#A32D2D">${r.reason}</td></tr>`
+      ).join('') + (rejected.length > 200 ? `<tr><td colspan="3" style="padding:8px;color:#888;text-align:center">… ${rejected.length - 200} more (download Excel to see all)</td></tr>` : '');
+  } else {
+    document.getElementById('rejection-section').style.display = 'none';
+  }
+
+  loadAudit();
+}
+
+function showUploadError(msg) {
+  document.getElementById('up-progress').style.display = 'none';
+  document.getElementById('up-step3').style.display = 'block';
+  const errEl = document.getElementById('up-error');
+  errEl.textContent = msg;
+  errEl.style.display = 'block';
+}
+
+function downloadRejections() {
+  if (!uploadRejectedRows || uploadRejectedRows.length === 0) return;
+  const t = UPLOAD_TEMPLATES[uploadTemplate];
+  const aoa = [[...t.columns, 'rejection_reason']];
+  for (const r of uploadRejectedRows) {
+    const cells = t.columns.map(c => r.raw[c] !== undefined ? r.raw[c] : '');
+    cells.push(r.reason);
+    aoa.push(cells);
+  }
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Rejected rows');
+  XLSX.writeFile(wb, `mhop_rejections_${uploadTemplate}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+function resetUpload() {
+  uploadFile = null;
+  uploadRejectedRows = null;
+  document.getElementById('up-file').value = '';
+  document.getElementById('up-file-info').style.display = 'none';
+  document.getElementById('up-step3').style.display = 'none';
+  document.getElementById('up-progress').style.display = 'none';
+  document.getElementById('up-summary').style.display = 'none';
+  document.getElementById('up-error').style.display = 'none';
+  document.getElementById('rejection-section').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const dz = document.getElementById('up-dropzone');
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.background = '#E6F1FB'; });
+  dz.addEventListener('dragleave', () => { dz.style.background = '#F8FBFD'; });
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.style.background = '#F8FBFD';
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      document.getElementById('up-file').files = e.dataTransfer.files;
+      onFileChosen({ target: { files: e.dataTransfer.files } });
+    }
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// DOWNLOAD — single Excel sheet, one row per patient, all latest values
+// ════════════════════════════════════════════════════════════════════════
+
+async function doDownload() {
+  const errEl = document.getElementById('dl-error');
+  const okEl = document.getElementById('dl-success');
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+
+  const btn = document.getElementById('btn-download');
+  btn.disabled = true;
+  btn.textContent = 'Building file...';
+
+  try {
+    const { data: patients, error: pErr } = await db.from('patients').select('*').order('mhop_id');
+    if (pErr) throw pErr;
+    if (!patients || patients.length === 0) throw new Error('No patients enrolled — nothing to download.');
+
+    async function latestByPatient(table) {
+      const { data, error } = await db.from(table).select('*').order('entry_date', { ascending: false });
+      if (error) throw error;
+      const byPatient = {};
+      for (const row of (data || [])) {
+        if (!byPatient[row.mhop_id]) byPatient[row.mhop_id] = row;
+      }
+      return byPatient;
+    }
+
+    btn.textContent = 'Reading glycaemic...';
+    const glyc = await latestByPatient('glycaemic');
+    btn.textContent = 'Reading body composition...';
+    const body = await latestByPatient('body_composition');
+    btn.textContent = 'Reading clinical markers...';
+    const clin = await latestByPatient('clinical_markers');
+    btn.textContent = 'Reading lifestyle...';
+    const life = await latestByPatient('lifestyle');
+    btn.textContent = 'Reading dietary...';
+    const diet = await latestByPatient('dietary');
+    btn.textContent = 'Reading behavioural...';
+    const beh = await latestByPatient('behavioural');
+
+    btn.textContent = 'Building workbook...';
+    const today = new Date().toISOString().slice(0,10);
+
+    const out = patients.map(p => {
+      const g = glyc[p.mhop_id] || {};
+      const b = body[p.mhop_id] || {};
+      const c = clin[p.mhop_id] || {};
+      const l = life[p.mhop_id] || {};
+      const d = diet[p.mhop_id] || {};
+      const bh = beh[p.mhop_id] || {};
+
+      const t2dm = g.hba1c_mmol != null && g.hba1c_mmol >= 48 ? 'Yes' : (g.hba1c_mmol != null ? 'No' : '');
+      const tirMet = g.tir_percent != null && g.tir_percent >= 70 ? 'Yes' : (g.tir_percent != null ? 'No' : '');
+      const obese = b.bmi != null && b.bmi >= 30 ? 'Yes' : (b.bmi != null ? 'No' : '');
+      const ckd = c.egfr != null && c.egfr < 60 ? 'Yes' : (c.egfr != null ? 'No' : '');
+      const htn = (c.bp_systolic != null && c.bp_diastolic != null)
+        ? ((c.bp_systolic >= 130 || c.bp_diastolic >= 80) ? 'Yes' : 'No') : '';
+
+      return {
+        'MHOP ID': p.mhop_id,
+        'Stage': p.stage || '',
+        'Sex': p.sex || '',
+        'Year of birth': p.dob_year || '',
+        'Month of birth': p.dob_month || '',
+        'Enrolment date': p.enrolled_date || '',
+        'Site': p.site_code || '',
+        'HbA1c (mmol/mol)': g.hba1c_mmol ?? '',
+        'Fasting glucose (mmol/L)': g.fasting_glucose ?? '',
+        'TIR %': g.tir_percent ?? '',
+        'TAR %': g.tar_percent ?? '',
+        'TBR %': g.tbr_percent ?? '',
+        'MAGE (mmol/L)': g.mage ?? '',
+        'CV %': g.cv_percent ?? '',
+        'Glycaemic date': g.entry_date || '',
+        'Weight (kg)': b.weight_kg ?? '',
+        'BMI (kg/m²)': b.bmi ?? '',
+        'Muscle mass (kg)': b.muscle_mass_kg ?? '',
+        'Visceral fat level': b.visceral_fat_level ?? '',
+        'Body fat %': b.body_fat_percent ?? '',
+        'BMR (kcal)': b.bmr_kcal ?? '',
+        'Body composition date': b.entry_date || '',
+        'BP systolic (mmHg)': c.bp_systolic ?? '',
+        'BP diastolic (mmHg)': c.bp_diastolic ?? '',
+        'Total cholesterol (mmol/L)': c.total_cholesterol ?? '',
+        'HDL (mmol/L)': c.hdl ?? '',
+        'LDL (mmol/L)': c.ldl ?? '',
+        'Triglycerides (mmol/L)': c.triglycerides ?? '',
+        'eGFR (mL/min)': c.egfr ?? '',
+        'Clinical markers date': c.entry_date || '',
+        'Daily steps': l.daily_steps ?? '',
+        'Active minutes': l.active_minutes ?? '',
+        'Sleep hours': l.sleep_hours ?? '',
+        'Sleep quality': l.sleep_quality || '',
+        'Smoking status': l.smoking_status || '',
+        'Alcohol units/week': l.alcohol_units_week ?? '',
+        'Lifestyle date': l.entry_date || '',
+        'Dietary quality score': d.dietary_quality_score ?? '',
+        'Plan adherence': d.plan_adherence || '',
+        'Caloric band': d.caloric_band || '',
+        'Protein adequacy': d.protein_adequacy || '',
+        'Dietary notes': d.notes || '',
+        'Dietary date': d.entry_date || '',
+        'PHQ-9': bh.phq9_score ?? '',
+        'GAD-7': bh.gad7_score ?? '',
+        'Readiness to change': bh.readiness_score ?? '',
+        'Behavioural date': bh.entry_date || '',
+        'T2DM (HbA1c ≥ 48)': t2dm,
+        'TIR target met (≥ 70%)': tirMet,
+        'Obesity (BMI ≥ 30)': obese,
+        'CKD (eGFR < 60)': ckd,
+        'Hypertension (BP ≥ 130/80)': htn,
+        'Extracted on': today
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(out);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'MHOP cohort');
+    const filename = `mhop_cohort_${today}.xlsx`;
+    XLSX.writeFile(wb, filename);
+
+    try {
+      await logAudit('data_download', null, 'cohort_export', 'excel_download',
+        `Cohort Excel downloaded: ${patients.length} patients`);
+    } catch (e) { /* non-fatal */ }
+
+    okEl.textContent = `Done. ${patients.length} patients exported to ${filename}. Check your Downloads folder.`;
+    okEl.style.display = 'block';
+    loadAudit();
+  } catch (e) {
+    errEl.textContent = 'Download failed: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇ Download cohort Excel';
+  }
 }
 </script>
 </body>
