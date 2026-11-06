@@ -659,7 +659,7 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font
         <div class="alert alert-info">No patient name is recorded here. Full identity — name, DOB, address — must be recorded in the local hospital clinical system only.</div>
         <div class="card" style="max-width:560px;margin-top:12px">
           <div class="form-grid">
-            <div class="fld"><label>Hospital card number (MRN) <span style="font-weight:400;color:#888">or MHOP key if no card (MK-0001)</span></label><input type="text" id="r-mrn" placeholder="Card number, or MK number from the MHOP key list" oninput="this.value=this.value.toUpperCase()"></div>
+            <div class="fld"><label>Hospital card number (MRN) <span style="font-weight:400;color:#888">or MHOP key if no card (MK-0001)</span></label><input type="text" id="r-mrn" placeholder="Card number, or MHOP key number (MK-0001) if no card" oninput="this.value=this.value.toUpperCase()"></div>
             <div class="fld"><label>Full date of birth</label><input type="date" id="r-dob-full"></div>
             <div class="fld"><label>Year of birth</label><input type="number" id="r-doby" min="1930" max="2026" placeholder="auto-filled from DOB" readonly style="background:#f9f9f6;color:#888"></div>
             <div class="fld"><label>Month of birth</label>
@@ -1759,7 +1759,7 @@ function updateTemplateInfo() {
   document.getElementById('template-info').style.display = 'block';
   document.getElementById('up-step2').style.display = 'block';
   if (tKey === 'combined') {
-    document.getElementById('tinfo-cols').textContent = 'One row per patient visit. Required: mrn (hospital card number, or the MHOP key MK-0001 from the hospital key list if there is no card), dob, entry_date. mhop_id may be blank: the patient is then found by MRN + date of birth, or REGISTERED automatically if sex, stage and enrolment_date are filled (you confirm before anyone is registered). Results from: '
+    document.getElementById('tinfo-cols').textContent = 'One row per patient visit. Required: mrn (hospital card number, or the patient's MHOP key number MK-0001 if there is no card), dob, entry_date. mhop_id may be blank: the patient is then found by MRN + date of birth, or REGISTERED automatically if sex, stage and enrolment_date are filled (you confirm before anyone is registered). Results from: '
       + COMBINED_ORDER.map(k => UPLOAD_TEMPLATES[k].label).join(', ')
       + ' are saved in the right section; empty sections are skipped.';
     return;
