@@ -745,12 +745,17 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font
               </select>
             </div>
             <div class="fld"><label>Sex</label><select id="r-sex"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
-            <div class="fld"><label>Clinical stage</label>
-              <select id="r-stage"><option value="">—</option>
-                <option value="A">Stage A — Prediabetes / NDH</option>
-                <option value="B">Stage B — Established T2DM</option>
-                <option value="C">Stage C — Advanced β-cell failure</option>
+            <div class="fld"><label>MHOP diabetes stage at enrolment <span style="font-weight:400;color:#888">(decided by the doctor)</span></label>
+              <select id="r-stage" onchange="updateStageHelp()"><option value="">— choose the stage written in the clinical file —</option>
+                <option value="A">Stage A — Prediabetes (raised sugar, not diabetes yet)</option>
+                <option value="B">Stage B — Type 2 diabetes (confirmed)</option>
+                <option value="C">Stage C — Advanced type 2 diabetes (very little own insulin)</option>
               </select>
+            </div>
+            <div id="r-stage-help" style="grid-column:1 / -1;background:#FFF6E0;border:1px solid #F0D9A0;border-radius:6px;padding:10px 12px;font-size:12px;line-height:1.6;color:#4a3b10">
+              <strong>What is the stage?</strong> The patient's diabetes stage in the MHOP programme on the day they join.
+              <strong>A</strong> = prediabetes · <strong>B</strong> = type 2 diabetes · <strong>C</strong> = advanced type 2 diabetes.
+              Copy the stage the doctor wrote in the clinical file. If it is not written, ask the MHOP Clinical Lead. Do not decide it yourself.
             </div>
             <div class="fld"><label>Enrolment date</label><input type="date" id="r-date"></div>
             <div class="fld"><label>Site code</label><input type="text" id="r-site" value="DG" readonly style="background:#f9f9f6;color:#888"></div>
@@ -1905,6 +1910,20 @@ function updatePhenotypePreview() {
   previewEl.value = ph ? ph : 'Normal Glucose State (no phenotype)';
 }
 
+// Plain-language stage help on the Register form (mirrors the Protocol page)
+
+function updateStageHelp() {
+  const STAGE_HELP = {
+    '': '<strong>What is the stage?</strong> The patient\'s diabetes stage in the MHOP programme on the day they join. <strong>A</strong> = prediabetes · <strong>B</strong> = type 2 diabetes · <strong>C</strong> = advanced type 2 diabetes. Copy the stage the doctor wrote in the clinical file. If it is not written, ask the MHOP Clinical Lead. Do not decide it yourself.',
+    A: '<strong>Stage A — Prediabetes.</strong> Blood sugar is higher than normal but this is NOT diabetes yet.<br>Usual signs: HbA1c 42–47 mmol/mol · no earlier diabetes diagnosis · body still makes its own insulin.',
+    B: '<strong>Stage B — Type 2 diabetes.</strong> The patient has confirmed type 2 diabetes.<br>Usual signs: HbA1c 48 mmol/mol or above, or diabetes already diagnosed.',
+    C: '<strong>Stage C — Advanced type 2 diabetes.</strong> Long-standing diabetes; the body makes very little insulin of its own.<br>Usual signs: depends on insulin · very low C-peptide · high disease burden.'
+  };
+  const el = document.getElementById('r-stage-help');
+  if (el) el.innerHTML = STAGE_HELP[document.getElementById('r-stage').value || ''] +
+    (document.getElementById('r-stage').value ? '<br><em>Decided by the doctor — if unsure, ask the MHOP Clinical Lead.</em>' : '');
+}
+
 function resetReg() {
   ['r-mrn','r-dob-full','r-doby','r-dobm','r-sex','r-stage',
    'r-ogtt-fpg','r-ogtt-2h','r-ogtt-date','r-phenotype-preview','r-glyc-state-preview',
@@ -1915,6 +1934,7 @@ function resetReg() {
   });
   document.getElementById('r-date').value = today();
   document.getElementById('reg-success').style.display = 'none';
+  updateStageHelp();
 }
 
 // ── AUDIT ─────────────────────────────────────────────────────────────────────
@@ -2346,4 +2366,4 @@ async function doDownload() {
 }
 </script>
 </body>
-</html>
+</html>
