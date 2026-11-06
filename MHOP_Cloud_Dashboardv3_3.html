@@ -829,7 +829,7 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font
             <label>Which clinical source is this file from?</label>
             <select id="up-template" onchange="updateTemplateInfo()">
               <option value="">— select data type —</option>
-              <option value="combined">★ Whole visit — ONE file with all data types (recommended)</option>
+              <option value="combined">★ Whole visit — ONE file with all data types, registers new patients (recommended)</option>
               <option value="glycaemic">Glycaemic / CGM — HbA1c, fasting glucose, TIR, TAR, TBR, MAGE, CV</option>
               <option value="body">Body composition — weight, BMI, muscle, visceral fat, body fat %, BMR</option>
               <option value="clinical">Clinical markers — BP, lipids, eGFR</option>
@@ -2008,9 +2008,9 @@ function updateTemplateInfo() {
   document.getElementById('template-info').style.display = 'block';
   document.getElementById('up-step2').style.display = 'block';
   if (tKey === 'combined') {
-    document.getElementById('tinfo-cols').textContent = 'One row per patient visit. Required: mhop_id, mrn, dob, entry_date. Then any results from: '
+    document.getElementById('tinfo-cols').textContent = 'One row per patient visit. Required: mrn, dob, entry_date. mhop_id may be blank: the patient is then found by MRN + date of birth, or REGISTERED automatically if sex, stage and enrolment_date are filled (you confirm before anyone is registered). Results from: '
       + COMBINED_ORDER.map(k => UPLOAD_TEMPLATES[k].label).join(', ')
-      + '. The dashboard saves each result in the right section; empty sections are skipped.';
+      + ' are saved in the right section; empty sections are skipped.';
     return;
   }
   const t = UPLOAD_TEMPLATES[tKey];
@@ -2018,7 +2018,7 @@ function updateTemplateInfo() {
 }
 
 const TEMPLATE_FILES = {
-  combined: 'templates/MHOP_single_upload_whole_visit.xlsx',
+  combined: 'templates/MHOP_visits_single_upload.xlsx',
   glycaemic: 'templates/MHOP_upload_1_glycaemic.xlsx',
   body: 'templates/MHOP_upload_2_body_composition.xlsx',
   clinical: 'templates/MHOP_upload_3_clinical_markers.xlsx',
@@ -2078,7 +2078,7 @@ function combinedOwner() {
   return owner;
 }
 function combinedColumns() {
-  return ['mhop_id','mrn','dob','entry_date', ...Object.keys(combinedOwner())];
+  return ['mhop_id','mrn','dob','entry_date','sex','stage','enrolment_date', ...Object.keys(combinedOwner())];
 }
 function sectionsLabel(counts) {
   return COMBINED_ORDER.filter(k => counts[k]).map(k => `${UPLOAD_TEMPLATES[k].label} ${counts[k]}`).join(' · ') || 'none';
@@ -2110,7 +2110,9 @@ async function readSpreadsheetFile(file) {
   const wb = XLSX.read(buf, { type:'array', cellDates:true });
   // Use the "ENTER DATA HERE" tab if present, otherwise the first tab whose header row contains mhop_id.
   // The header row may sit below a coloured section banner (row 1), so search the first 10 rows.
-  const names = [...wb.SheetNames].sort((a, b) => (b.trim().toUpperCase() === 'ENTER DATA HERE') - (a.trim().toUpperCase() === 'ENTER DATA HERE'));
+  // Prefer the data tab by name; never read the EXAMPLE or READ ME tabs
+  const pref = n => { const u = n.trim().toUpperCase(); return (u === 'ENTER DATA HERE' || u.startsWith('VISITS')) ? 1 : 0; };
+  const names = wb.SheetNames.filter(n => !/^\s*(EXAMPLE|READ ME)/i.test(n)).sort((a, b) => pref(b) - pref(a));
   for (const name of names) {
     const ws = wb.Sheets[name];
     const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:false, blankrows:true });
@@ -2137,6 +2139,30 @@ async function readSpreadsheetFile(file) {
   const out = rows.map(r => { const o = {}; for (const k of Object.keys(r)) o[k.trim().toLowerCase()] = r[k]; return o; });
   out.headers = rows.length ? Object.keys(out[0]) : [];
   return out;
+}
+
+// Joining details used to register a patient automatically (single upload only)
+const JOIN_COLS = ['sex','stage','enrolment_date'];
+function parseJoin(r) {
+  const sexRaw = String(r.sex || '').trim().toLowerCase();
+  const sex = sexRaw.startsWith('m') ? 'Male' : sexRaw.startsWith('f') ? 'Female' : sexRaw.startsWith('o') ? 'Other' : '';
+  const st = String(r.stage || '').trim().toUpperCase().charAt(0);
+  const stage = ['A','B','C'].includes(st) ? st : '';
+  const ed = r.enrolment_date ? String(r.enrolment_date).trim().slice(0,10) : '';
+  const enrol = /^\d{4}-\d{2}-\d{2}$/.test(ed) && new Date(ed) <= new Date() ? ed : '';
+  const any = !!(sexRaw || r.stage || r.enrolment_date);
+  return { sex, stage, enrol, any, complete: !!(sex && stage && enrol) };
+}
+
+let uploadNewPatients = [];
+function downloadNewPatientIds() {
+  if (!uploadNewPatients.length) return;
+  const aoa = [['new_mhop_id','mrn','dob','sex','stage','enrolment_date','first_row_in_file']];
+  for (const p of uploadNewPatients) aoa.push([p.id, p.mrn, p.dob, p.sex, p.stage, p.enrol, p.rowNum]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'New MHOP IDs');
+  XLSX.writeFile(wb, `mhop_new_patient_ids_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 async function doUpload() {
@@ -2175,32 +2201,127 @@ async function doUpload() {
   const accepted = [];
   const rejected = [];
   const counts = {};
-  const verifyCache = {};
+  uploadNewPatients = [];
 
+  // ── PASS 1: check each row and work out which patient it belongs to ──
+  const items = [];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    document.getElementById('up-progress-text').textContent = `Processing row ${i+1} of ${rows.length}...`;
-
+    document.getElementById('up-progress-text').textContent = `Checking row ${i+1} of ${rows.length}...`;
     const rowNum = r.__row || (i + 2);
-    const mhopId = (r.mhop_id || '').toString().trim().toUpperCase();
+    let mhopId = (r.mhop_id || '').toString().trim().toUpperCase();
     const mrn = r.mrn ? r.mrn.toString() : '';
     const dob = r.dob ? r.dob.toString() : '';
     const entryDate = r.entry_date ? r.entry_date.toString().slice(0,10) : '';
 
-    if (!mhopId) { rejected.push({rowNum, mhopId:'', reason:'MHOP_ID_MISSING', raw:r}); continue; }
-    if (!/^MHOP-DG-\d{5}$/i.test(mhopId)) { rejected.push({rowNum, mhopId, reason:'MHOP_ID_FORMAT', raw:r}); continue; }
+    if (!mhopId && !combined) { rejected.push({rowNum, mhopId:'', reason:'MHOP_ID_MISSING', raw:r}); continue; }
+    if (mhopId && !/^MHOP-DG-\d{5}$/i.test(mhopId)) { rejected.push({rowNum, mhopId, reason:'MHOP_ID_FORMAT', raw:r}); continue; }
     if (!mrn) { rejected.push({rowNum, mhopId, reason:'MRN_MISSING', raw:r}); continue; }
     if (!dob) { rejected.push({rowNum, mhopId, reason:'DOB_MISSING', raw:r}); continue; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normaliseDOB(dob))) { rejected.push({rowNum, mhopId, reason:'DOB_INVALID', raw:r}); continue; }
     if (!entryDate) { rejected.push({rowNum, mhopId, reason:'ENTRY_DATE_MISSING', raw:r}); continue; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) { rejected.push({rowNum, mhopId, reason:'ENTRY_DATE_INVALID', raw:r}); continue; }
     if (new Date(entryDate) > new Date()) { rejected.push({rowNum, mhopId, reason:'ENTRY_DATE_FUTURE', raw:r}); continue; }
 
-    // Build one insert row per section that has at least one value
+    const mrnN = normaliseMRN(mrn), dobN = normaliseDOB(dob);
+    const mrnHash = await sha256Hex(mrnN);
+    const dobHash = await sha256Hex(dobN);
+    items.push({ r, rowNum, mhopId, entryDate, mrnN, dobN, mrnHash, dobHash, key: mrnHash + '|' + dobHash, join: combined ? parseJoin(r) : null });
+  }
+
+  // Rows with an MHOP ID: verify ID + MRN + DOB (as before)
+  const verifyCache = {};
+  for (const it of items.filter(x => x.mhopId)) {
+    const ck = it.mhopId + '|' + it.key;
+    let verdict = verifyCache[ck];
+    if (!verdict) {
+      try {
+        const { data, error } = await db.rpc('verify_triangulation', { p_mhop_id: it.mhopId, p_mrn_hash: it.mrnHash, p_dob_hash: it.dobHash });
+        verdict = error ? { ok:false, reason:'VERIFY_ERROR: ' + error.message } : (data || { ok:false });
+      } catch (e) { verdict = { ok:false, reason:'VERIFY_ERROR: ' + e.message }; }
+      verifyCache[ck] = verdict;
+    }
+    if (!verdict.ok) { it.reject = verdict.reason || 'UNKNOWN_REJECTION'; }
+  }
+
+  // Rows WITHOUT an MHOP ID (single upload): find the patient by MRN + DOB, or register them
+  const blank = items.filter(x => !x.mhopId);
+  const toRegister = {};
+  if (blank.length) {
+    // Safety: never auto-register unless existing patients can be matched, otherwise duplicates would be created
+    const keys = [...new Set(blank.map(x => x.key))];
+    const found = {};
+    let lookupOk = !(Array.isArray(patients) && patients.length && patients[0].mrn_hash === undefined);
+    for (const k of keys) {
+      const [mh, dh] = k.split('|');
+      try {
+        const { data, error } = await db.from('patients').select('mhop_id,mrn_hash,dob_hash').eq('mrn_hash', mh).eq('dob_hash', dh).limit(1);
+        if (error) { lookupOk = false; break; }
+        if (data && data.length) {
+          if (data[0].mrn_hash === undefined) { lookupOk = false; break; }
+          found[k] = data[0].mhop_id;
+        }
+      } catch (e) { lookupOk = false; break; }
+    }
+    if (!lookupOk) {
+      for (const it of blank) it.reject = 'MHOP_ID_MISSING (patient lookup unavailable — add the MHOP ID or register the patient first)';
+    } else {
+      for (const it of blank) {
+        if (found[it.key]) { it.mhopId = found[it.key]; continue; }
+        if (it.join && it.join.complete) {
+          if (!toRegister[it.key]) toRegister[it.key] = { ...it.join, mrn: it.mrnN, dob: it.dobN, mrnHash: it.mrnHash, dobHash: it.dobHash, rowNum: it.rowNum };
+        }
+      }
+      for (const it of blank) {
+        if (it.mhopId || toRegister[it.key]) continue;
+        it.reject = it.join && it.join.any
+          ? 'NOT_REGISTERED — sex, stage and enrolment date must all be filled (stage A, B or C; date YYYY-MM-DD) to register this patient'
+          : 'NOT_REGISTERED — leave MHOP ID blank only if sex, stage and enrolment date are filled, or check MRN / date of birth';
+      }
+    }
+  }
+
+  // Confirm before registering anyone
+  const newCount = Object.keys(toRegister).length;
+  if (newCount > 0) {
+    const ok = window.confirm(`This file will REGISTER ${newCount} NEW patient${newCount>1?'s':''} (no matching MRN + date of birth found), then save their results.\n\nPlease check this number looks right.\n\nPress OK to continue, or Cancel to stop (nothing will be saved).`);
+    if (!ok) { showUploadError('Upload cancelled — nothing was saved.'); return; }
+  }
+
+  // ── PASS 2: register new patients ──
+  let n2 = 0;
+  for (const [k, p] of Object.entries(toRegister)) {
+    document.getElementById('up-progress-text').textContent = `Registering new patient ${++n2} of ${newCount}...`;
+    try {
+      const { data: idData, error: idErr } = await db.rpc('generate_mhop_id');
+      if (idErr || !idData) { p.error = 'REGISTRATION_ERROR: ' + (idErr ? idErr.message : 'no ID'); continue; }
+      const insertRow = { mhop_id: idData, dob_year: parseInt(p.dob.slice(0,4),10), dob_month: parseInt(p.dob.slice(5,7),10),
+        sex: p.sex, stage: p.stage, enrolled_date: p.enrol, site_code: 'DG', mrn_hash: p.mrnHash, dob_hash: p.dobHash, created_by: user.id };
+      const { error } = await db.from('patients').insert(insertRow);
+      if (error) { p.error = 'REGISTRATION_ERROR: ' + error.message; continue; }
+      p.id = idData;
+      uploadNewPatients.push(p);
+      try { await logAudit('patient_registered', idData, 'patients', null, 'Registered via single upload (triangulation-ready)'); } catch (e) {}
+    } catch (e) { p.error = 'REGISTRATION_ERROR: ' + e.message; }
+  }
+  for (const it of blank) {
+    const p = toRegister[it.key];
+    if (!p || it.reject) continue;
+    if (p.id) it.mhopId = p.id; else it.reject = p.error || 'REGISTRATION_ERROR';
+  }
+
+  // ── PASS 3: save results into each section ──
+  let n3 = 0;
+  for (const it of items) {
+    document.getElementById('up-progress-text').textContent = `Saving row ${++n3} of ${items.length}...`;
+    const r = it.r, rowNum = it.rowNum, mhopId = it.mhopId;
+    if (it.reject) { rejected.push({rowNum, mhopId, reason: it.reject, raw:r}); continue; }
+
     const pending = [];
     for (const k of sections) {
       const t = UPLOAD_TEMPLATES[k];
       const textCols = t.textCols || [];
-      const insertRow = { mhop_id:mhopId, entry_date:entryDate, created_by:user.id };
+      const insertRow = { mhop_id:mhopId, entry_date:it.entryDate, created_by:user.id };
       let hasValue = false;
       for (const col of t.columns) {
         if (['mhop_id','mrn','dob','entry_date'].includes(col)) continue;
@@ -2216,26 +2337,10 @@ async function doUpload() {
       }
       if (hasValue) pending.push({ k, t, insertRow: Object.assign(insertRow, deriveForUpload(k, insertRow, r)) });
     }
-    if (!pending.length) { rejected.push({rowNum, mhopId, reason:'NO_CLINICAL_VALUES', raw:r}); continue; }
-
-    const mrnHash = await sha256Hex(normaliseMRN(mrn));
-    const dobHash = await sha256Hex(normaliseDOB(dob));
-    const ck = mhopId + '|' + mrnHash + '|' + dobHash;
-
-    let verdict = verifyCache[ck];
-    if (!verdict) {
-      try {
-        const { data, error } = await db.rpc('verify_triangulation', {
-          p_mhop_id: mhopId, p_mrn_hash: mrnHash, p_dob_hash: dobHash
-        });
-        if (error) { rejected.push({rowNum, mhopId, reason:'VERIFY_ERROR: ' + error.message, raw:r}); continue; }
-        verdict = data;
-        if (verdict && verdict.ok) verifyCache[ck] = verdict;
-      } catch (e) { rejected.push({rowNum, mhopId, reason:'VERIFY_ERROR: ' + e.message, raw:r}); continue; }
-    }
-
-    if (!verdict || !verdict.ok) {
-      rejected.push({rowNum, mhopId, reason:(verdict && verdict.reason) || 'UNKNOWN_REJECTION', raw:r});
+    const isNew = uploadNewPatients.some(p => p.id === mhopId);
+    if (!pending.length) {
+      if (isNew) accepted.push({rowNum, mhopId, sections:[]});      // registration-only row
+      else rejected.push({rowNum, mhopId, reason:'NO_CLINICAL_VALUES', raw:r});
       continue;
     }
 
@@ -2251,10 +2356,11 @@ async function doUpload() {
     if (failed.length) rejected.push({rowNum, mhopId, raw:r,
       reason:'INSERT_ERROR — ' + failed.join('; ') + (saved.length ? ` (already saved: ${saved.join(', ')} — re-upload only the failed section)` : '')});
   }
+  rejected.sort((a, b) => (a.rowNum || 0) - (b.rowNum || 0));
 
   try {
     await logAudit('data_upload', null, combined ? 'multiple' : UPLOAD_TEMPLATES[uploadTemplate].table, 'bulk_upload',
-      `${accepted.length} accepted, ${rejected.length} rejected (${label})` + (combined ? ` — ${sectionsLabel(counts)}` : ''));
+      `${accepted.length} accepted, ${rejected.length} rejected (${label})` + (combined ? ` — ${sectionsLabel(counts)} — new patients: ${uploadNewPatients.length}` : ''));
   } catch (e) { /* non-fatal */ }
 
   uploadRejectedRows = rejected;
@@ -2268,12 +2374,17 @@ async function doUpload() {
   if (!secEl) {
     secEl = document.createElement('div');
     secEl.id = 'sum-sections';
-    secEl.style.cssText = 'font-size:12px;color:#444;background:#E8F6F0;border-radius:6px;padding:8px 12px;margin-top:10px';
+    secEl.style.cssText = 'font-size:12px;color:#444;background:#E8F6F0;border-radius:6px;padding:8px 12px;margin-top:10px;line-height:1.7';
     const title = document.querySelector('#up-summary .card-title');
     if (title) title.after(secEl);
   }
   secEl.style.display = combined ? 'block' : 'none';
-  secEl.innerHTML = `<strong>Saved to each section:</strong> ${sectionsLabel(counts)}`;
+  secEl.innerHTML = `<strong>Saved to each section:</strong> ${sectionsLabel(counts)}` +
+    (uploadNewPatients.length
+      ? `<br><strong>New patients registered: ${uploadNewPatients.length}</strong> (${uploadNewPatients.map(p => p.id).join(', ')}) ` +
+        `<button class="submit-btn" style="padding:3px 10px;font-size:11px;margin-left:6px" onclick="downloadNewPatientIds()">⬇ Download new MHOP IDs</button>` +
+        `<br><span style="color:#7A4B00">Write each new MHOP ID on the patient's card and clinical file.</span>`
+      : '');
 
   if (rejected.length > 0) {
     document.getElementById('rejection-section').style.display = 'block';
@@ -2285,6 +2396,7 @@ async function doUpload() {
     document.getElementById('rejection-section').style.display = 'none';
   }
 
+  if (uploadNewPatients.length) { try { await loadAll(); } catch (e) {} }
   loadAudit();
 }
 
