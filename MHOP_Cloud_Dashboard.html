@@ -541,6 +541,8 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font
             <p style="font-size:12px;color:#666;margin-bottom:6px"><strong>Expected columns (case-insensitive):</strong></p>
             <p style="font-size:11px;font-family:'Courier New',monospace;background:#fff;padding:8px;border-radius:4px;margin-bottom:8px" id="tinfo-cols">—</p>
             <button class="submit-btn" style="padding:5px 12px;font-size:11px" onclick="downloadTemplate()">⬇ Download blank template</button>
+            <p style="font-size:11px;color:#666;margin-top:8px;line-height:1.6">The template has colour-coded columns and a <strong>READ ME – how to fill</strong> tab with step-by-step instructions for nurses. Fill the green <strong>ENTER DATA HERE</strong> tab only, and do not change the header row.<br>
+            Also available: <a href="templates/MHOP_0_new_patient_registration_NOT_for_upload.xlsx" download>New patient registration sheet</a> (paper-to-screen aid, not for upload) · <a href="templates/MHOP_data_collection_templates_v3_3.zip" download>All templates (.zip)</a></p>
           </div>
         </div>
 
@@ -1146,8 +1148,31 @@ function updateTemplateInfo() {
   document.getElementById('tinfo-cols').textContent = t.columns.join(', ');
 }
 
-function downloadTemplate() {
+const TEMPLATE_FILES = {
+  glycaemic: 'templates/MHOP_upload_1_glycaemic.xlsx',
+  body: 'templates/MHOP_upload_2_body_composition.xlsx',
+  clinical: 'templates/MHOP_upload_3_clinical_markers.xlsx',
+  lifestyle: 'templates/MHOP_upload_4_lifestyle.xlsx',
+  dietary: 'templates/MHOP_upload_5_dietary.xlsx',
+  behavioural: 'templates/MHOP_upload_6_behavioural.xlsx'
+};
+async function downloadTemplate() {
   if (!uploadTemplate) return;
+  // Prefer the colour-coded template with nurse guidance; fall back to a plain header-only sheet
+  const f = TEMPLATE_FILES[uploadTemplate];
+  if (f) {
+    try {
+      const r = await fetch(f, { cache: 'no-cache' });
+      if (r.ok) {
+        const url = URL.createObjectURL(await r.blob());
+        const a = document.createElement('a');
+        a.href = url; a.download = f.split('/').pop();
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        return;
+      }
+    } catch (e) { /* fall through to plain template */ }
+  }
   const t = UPLOAD_TEMPLATES[uploadTemplate];
   const ws = XLSX.utils.aoa_to_sheet([t.columns, t.columns.map(() => '')]);
   const wb = XLSX.utils.book_new();
