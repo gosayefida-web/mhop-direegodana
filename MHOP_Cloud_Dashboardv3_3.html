@@ -829,6 +829,7 @@ body { font-family: Arial, sans-serif; background: #f0f2f5; color: #1a1a18; font
             <label>Which clinical source is this file from?</label>
             <select id="up-template" onchange="updateTemplateInfo()">
               <option value="">— select data type —</option>
+              <option value="combined">★ Whole visit — ONE file with all data types (recommended)</option>
               <option value="glycaemic">Glycaemic / CGM — HbA1c, fasting glucose, TIR, TAR, TBR, MAGE, CV</option>
               <option value="body">Body composition — weight, BMI, muscle, visceral fat, body fat %, BMR</option>
               <option value="clinical">Clinical markers — BP, lipids, eGFR</option>
@@ -2004,13 +2005,20 @@ function updateTemplateInfo() {
     return;
   }
   uploadTemplate = tKey;
-  const t = UPLOAD_TEMPLATES[tKey];
   document.getElementById('template-info').style.display = 'block';
   document.getElementById('up-step2').style.display = 'block';
+  if (tKey === 'combined') {
+    document.getElementById('tinfo-cols').textContent = 'One row per patient visit. Required: mhop_id, mrn, dob, entry_date. Then any results from: '
+      + COMBINED_ORDER.map(k => UPLOAD_TEMPLATES[k].label).join(', ')
+      + '. The dashboard saves each result in the right section; empty sections are skipped.';
+    return;
+  }
+  const t = UPLOAD_TEMPLATES[tKey];
   document.getElementById('tinfo-cols').textContent = t.columns.join(', ');
 }
 
 const TEMPLATE_FILES = {
+  combined: 'templates/MHOP_single_upload_whole_visit.xlsx',
   glycaemic: 'templates/MHOP_upload_1_glycaemic.xlsx',
   body: 'templates/MHOP_upload_2_body_composition.xlsx',
   clinical: 'templates/MHOP_upload_3_clinical_markers.xlsx',
@@ -2035,10 +2043,10 @@ async function downloadTemplate() {
       }
     } catch (e) { /* fall through to plain template */ }
   }
-  const t = UPLOAD_TEMPLATES[uploadTemplate];
-  const ws = XLSX.utils.aoa_to_sheet([t.columns, t.columns.map(() => '')]);
+  const cols = uploadTemplate === 'combined' ? combinedColumns() : UPLOAD_TEMPLATES[uploadTemplate].columns;
+  const ws = XLSX.utils.aoa_to_sheet([cols, cols.map(() => '')]);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, t.label.slice(0, 31));
+  XLSX.utils.book_append_sheet(wb, ws, 'ENTER DATA HERE');
   XLSX.writeFile(wb, `mhop_template_${uploadTemplate}.xlsx`);
 }
 
@@ -2059,16 +2067,76 @@ function clearFile() {
   document.getElementById('up-step3').style.display = 'none';
 }
 
+// ── SINGLE UPLOAD: one sheet, one row per patient visit, all data types (v3.3+) ──
+// The dashboard splits each row into the six sections. Sections left empty are skipped.
+const COMBINED_ORDER = ['glycaemic','body','clinical','lifestyle','dietary','behavioural'];
+function combinedOwner() {
+  // Each column belongs to the FIRST section that lists it (insulin_fasting -> glycaemic)
+  const owner = {};
+  const keys = ['mhop_id','mrn','dob','entry_date'];
+  for (const k of COMBINED_ORDER) for (const c of UPLOAD_TEMPLATES[k].columns) if (!keys.includes(c) && !owner[c]) owner[c] = k;
+  return owner;
+}
+function combinedColumns() {
+  return ['mhop_id','mrn','dob','entry_date', ...Object.keys(combinedOwner())];
+}
+function sectionsLabel(counts) {
+  return COMBINED_ORDER.filter(k => counts[k]).map(k => `${UPLOAD_TEMPLATES[k].label} ${counts[k]}`).join(' · ') || 'none';
+}
+
+// Derived values for uploaded rows (same formulas as manual entry).
+// Clinical: TyG uses the fasting glucose from the SAME uploaded row, never the patient open on screen;
+// FIB-4 is left to manual entry because it needs patient age.
+function deriveForUpload(section, row, raw) {
+  try {
+    if (section === 'glycaemic') return deriveGlycaemic(row);
+    if (section === 'body') return (row.waist_cm != null && row.hip_circumference_cm) ? { whr: round2(row.waist_cm / row.hip_circumference_cm) } : {};
+    if (section === 'clinical') {
+      const d = deriveClinical(row);
+      delete d.tyg_index; delete d.fib4;
+      const fpg = raw && raw.fasting_glucose !== undefined && raw.fasting_glucose !== '' ? parseFloat(raw.fasting_glucose) : NaN;
+      if (row.triglycerides != null && !isNaN(fpg)) {
+        const tg_mgdl = row.triglycerides * 88.57, fpg_mgdl = fpg * 18;
+        if (tg_mgdl > 0 && fpg_mgdl > 0) d.tyg_index = round2(Math.log(tg_mgdl * fpg_mgdl / 2));
+      }
+      return d;
+    }
+  } catch (e) { /* derived values are optional */ }
+  return {};
+}
+
 async function readSpreadsheetFile(file) {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type:'array', cellDates:true });
+  // Use the "ENTER DATA HERE" tab if present, otherwise the first tab whose header row contains mhop_id.
+  // The header row may sit below a coloured section banner (row 1), so search the first 10 rows.
+  const names = [...wb.SheetNames].sort((a, b) => (b.trim().toUpperCase() === 'ENTER DATA HERE') - (a.trim().toUpperCase() === 'ENTER DATA HERE'));
+  for (const name of names) {
+    const ws = wb.Sheets[name];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:false, blankrows:true });
+    let hi = -1;
+    for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+      if (aoa[i].some(c => String(c).trim().toLowerCase() === 'mhop_id')) { hi = i; break; }
+    }
+    if (hi < 0) continue;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    range.s.r = range.s.r + hi;
+    const rows = XLSX.utils.sheet_to_json(ws, { defval:'', raw:false, range });
+    const out = rows.map(r => {
+      const o = {};
+      for (const k of Object.keys(r)) o[k.trim().toLowerCase()] = r[k];
+      o.__row = (r.__rowNum__ !== undefined ? r.__rowNum__ + 1 : null);
+      return o;
+    });
+    out.headers = (aoa[hi] || []).map(c => String(c).trim().toLowerCase());
+    return out;
+  }
+  // No mhop_id header anywhere: return the first sheet so the missing-column message is shown
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { defval:'', raw:false });
-  return rows.map(r => {
-    const out = {};
-    for (const k of Object.keys(r)) out[k.trim().toLowerCase()] = r[k];
-    return out;
-  });
+  const out = rows.map(r => { const o = {}; for (const k of Object.keys(r)) o[k.trim().toLowerCase()] = r[k]; return o; });
+  out.headers = rows.length ? Object.keys(out[0]) : [];
+  return out;
 }
 
 async function doUpload() {
@@ -2091,9 +2159,13 @@ async function doUpload() {
 
   if (!rows || rows.length === 0) { showUploadError('File contains no data rows.'); return; }
 
-  const t = UPLOAD_TEMPLATES[uploadTemplate];
+  const combined = uploadTemplate === 'combined';
+  const sections = combined ? COMBINED_ORDER : [uploadTemplate];
+  const owner = combined ? combinedOwner() : null;
+  const label = combined ? 'Whole visit (single upload)' : UPLOAD_TEMPLATES[uploadTemplate].label;
+
   const required = ['mhop_id','mrn','dob','entry_date'];
-  const headers = Object.keys(rows[0]);
+  const headers = rows.headers && rows.headers.length ? rows.headers : Object.keys(rows[0]);
   const missing = required.filter(r => !headers.includes(r));
   if (missing.length > 0) {
     showUploadError('File is missing required columns: ' + missing.join(', ') + '. Use the blank template if needed.');
@@ -2102,12 +2174,14 @@ async function doUpload() {
 
   const accepted = [];
   const rejected = [];
+  const counts = {};
+  const verifyCache = {};
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     document.getElementById('up-progress-text').textContent = `Processing row ${i+1} of ${rows.length}...`;
 
-    const rowNum = i + 2;
+    const rowNum = r.__row || (i + 2);
     const mhopId = (r.mhop_id || '').toString().trim().toUpperCase();
     const mrn = r.mrn ? r.mrn.toString() : '';
     const dob = r.dob ? r.dob.toString() : '';
@@ -2121,49 +2195,66 @@ async function doUpload() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) { rejected.push({rowNum, mhopId, reason:'ENTRY_DATE_INVALID', raw:r}); continue; }
     if (new Date(entryDate) > new Date()) { rejected.push({rowNum, mhopId, reason:'ENTRY_DATE_FUTURE', raw:r}); continue; }
 
+    // Build one insert row per section that has at least one value
+    const pending = [];
+    for (const k of sections) {
+      const t = UPLOAD_TEMPLATES[k];
+      const textCols = t.textCols || [];
+      const insertRow = { mhop_id:mhopId, entry_date:entryDate, created_by:user.id };
+      let hasValue = false;
+      for (const col of t.columns) {
+        if (['mhop_id','mrn','dob','entry_date'].includes(col)) continue;
+        if (combined && owner[col] !== k) continue;
+        const raw = r[col];
+        if (raw === undefined || raw === '' || raw === null) continue;
+        if (textCols.includes(col)) { insertRow[col] = String(raw).trim(); }
+        else {
+          const n = parseFloat(String(raw).replace(/,/g, ''));
+          insertRow[col] = !isNaN(n) ? n : String(raw);
+        }
+        if (t.clinical.includes(col)) hasValue = true;   // device/visit labels alone do not make a record
+      }
+      if (hasValue) pending.push({ k, t, insertRow: Object.assign(insertRow, deriveForUpload(k, insertRow, r)) });
+    }
+    if (!pending.length) { rejected.push({rowNum, mhopId, reason:'NO_CLINICAL_VALUES', raw:r}); continue; }
+
     const mrnHash = await sha256Hex(normaliseMRN(mrn));
     const dobHash = await sha256Hex(normaliseDOB(dob));
+    const ck = mhopId + '|' + mrnHash + '|' + dobHash;
 
-    let verdict;
-    try {
-      const { data, error } = await db.rpc('verify_triangulation', {
-        p_mhop_id: mhopId, p_mrn_hash: mrnHash, p_dob_hash: dobHash
-      });
-      if (error) { rejected.push({rowNum, mhopId, reason:'VERIFY_ERROR: ' + error.message, raw:r}); continue; }
-      verdict = data;
-    } catch (e) { rejected.push({rowNum, mhopId, reason:'VERIFY_ERROR: ' + e.message, raw:r}); continue; }
+    let verdict = verifyCache[ck];
+    if (!verdict) {
+      try {
+        const { data, error } = await db.rpc('verify_triangulation', {
+          p_mhop_id: mhopId, p_mrn_hash: mrnHash, p_dob_hash: dobHash
+        });
+        if (error) { rejected.push({rowNum, mhopId, reason:'VERIFY_ERROR: ' + error.message, raw:r}); continue; }
+        verdict = data;
+        if (verdict && verdict.ok) verifyCache[ck] = verdict;
+      } catch (e) { rejected.push({rowNum, mhopId, reason:'VERIFY_ERROR: ' + e.message, raw:r}); continue; }
+    }
 
     if (!verdict || !verdict.ok) {
       rejected.push({rowNum, mhopId, reason:(verdict && verdict.reason) || 'UNKNOWN_REJECTION', raw:r});
       continue;
     }
 
-    const insertRow = { mhop_id:mhopId, entry_date:entryDate, created_by:user.id };
-    const textCols = t.textCols || [];
-    let hasValue = false;
-    for (const col of t.clinical) {
-      const raw = r[col];
-      if (raw === undefined || raw === '' || raw === null) continue;
-      if (textCols.includes(col)) { insertRow[col] = String(raw); }
-      else {
-        const n = parseFloat(raw);
-        insertRow[col] = !isNaN(n) ? n : String(raw);
-      }
-      hasValue = true;
+    const saved = [], failed = [];
+    for (const p of pending) {
+      try {
+        const { error: insErr } = await db.from(p.t.table).insert(p.insertRow);
+        if (insErr) failed.push(`${p.t.label}: ${insErr.message}`);
+        else { saved.push(p.t.label); counts[p.k] = (counts[p.k] || 0) + 1; }
+      } catch (e) { failed.push(`${p.t.label}: ${e.message}`); }
     }
-
-    if (!hasValue) { rejected.push({rowNum, mhopId, reason:'NO_CLINICAL_VALUES', raw:r}); continue; }
-
-    try {
-      const { error: insErr } = await db.from(t.table).insert(insertRow);
-      if (insErr) { rejected.push({rowNum, mhopId, reason:'INSERT_ERROR: ' + insErr.message, raw:r}); continue; }
-      accepted.push({rowNum, mhopId});
-    } catch (e) { rejected.push({rowNum, mhopId, reason:'INSERT_ERROR: ' + e.message, raw:r}); }
+    if (saved.length) accepted.push({rowNum, mhopId, sections:saved});
+    if (failed.length) rejected.push({rowNum, mhopId, raw:r,
+      reason:'INSERT_ERROR — ' + failed.join('; ') + (saved.length ? ` (already saved: ${saved.join(', ')} — re-upload only the failed section)` : '')});
   }
 
   try {
-    await logAudit('data_upload', null, t.table, 'bulk_upload',
-      `${accepted.length} accepted, ${rejected.length} rejected (${t.label})`);
+    await logAudit('data_upload', null, combined ? 'multiple' : UPLOAD_TEMPLATES[uploadTemplate].table, 'bulk_upload',
+      `${accepted.length} accepted, ${rejected.length} rejected (${label})` + (combined ? ` — ${sectionsLabel(counts)}` : ''));
   } catch (e) { /* non-fatal */ }
 
   uploadRejectedRows = rejected;
@@ -2172,6 +2263,17 @@ async function doUpload() {
   document.getElementById('sum-total').textContent = rows.length;
   document.getElementById('sum-ok').textContent = accepted.length;
   document.getElementById('sum-rej').textContent = rejected.length;
+
+  let secEl = document.getElementById('sum-sections');
+  if (!secEl) {
+    secEl = document.createElement('div');
+    secEl.id = 'sum-sections';
+    secEl.style.cssText = 'font-size:12px;color:#444;background:#E8F6F0;border-radius:6px;padding:8px 12px;margin-top:10px';
+    const title = document.querySelector('#up-summary .card-title');
+    if (title) title.after(secEl);
+  }
+  secEl.style.display = combined ? 'block' : 'none';
+  secEl.innerHTML = `<strong>Saved to each section:</strong> ${sectionsLabel(counts)}`;
 
   if (rejected.length > 0) {
     document.getElementById('rejection-section').style.display = 'block';
@@ -2196,10 +2298,10 @@ function showUploadError(msg) {
 
 function downloadRejections() {
   if (!uploadRejectedRows || uploadRejectedRows.length === 0) return;
-  const t = UPLOAD_TEMPLATES[uploadTemplate];
-  const aoa = [[...t.columns, 'rejection_reason']];
+  const cols = uploadTemplate === 'combined' ? combinedColumns() : UPLOAD_TEMPLATES[uploadTemplate].columns;
+  const aoa = [[...cols, 'rejection_reason']];
   for (const r of uploadRejectedRows) {
-    const cells = t.columns.map(c => r.raw[c] !== undefined ? r.raw[c] : '');
+    const cells = cols.map(c => r.raw[c] !== undefined ? r.raw[c] : '');
     cells.push(r.reason);
     aoa.push(cells);
   }
